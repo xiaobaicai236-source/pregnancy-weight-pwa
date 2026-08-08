@@ -47,13 +47,10 @@ window.PregnancyStorage = (() => {
   }
 
   function clearRecords(state) { return { ...state, currentWeight:'', records:[] }; }
-  return { load, save, addRecord, updateRecord, deleteRecord, clearRecords };
+  function replaceData(statePatch) {
+    const next = { ...defaults(), ...statePatch, records:Array.isArray(statePatch.records)?statePatch.records:[] };
+    save(next);
+    return next;
+  }
+  return { load, save, addRecord, updateRecord, deleteRecord, clearRecords, replaceData };
 })();
-
-// v1.6 compatibility helpers
-PregnancyStorage.saveSettings = PregnancyStorage.saveSettings || function(settings){
-  localStorage.setItem('pregnancyWeight.settings', JSON.stringify(settings));
-};
-PregnancyStorage.saveRecords = PregnancyStorage.saveRecords || function(records){
-  localStorage.setItem('pregnancyWeight.records', JSON.stringify(records));
-};
