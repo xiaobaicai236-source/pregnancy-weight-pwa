@@ -17,8 +17,8 @@
     els.weight.value=state.currentWeight||'';
     els.baseInput.value=state.preWeight ?? '';
     els.baseLabel.textContent = Number.isFinite(Number(state.preWeight))
-      ? Number(state.preWeight).toFixed(1)+' kg'
-      : '请输入准妈妈孕前体重';
+      ? `孕前体重 ${Number(state.preWeight).toFixed(1)} kg`
+      : '请输入孕前体重';
   }
   function readInputs(commit=false){
     const rawW=Number(els.week.value), rawD=Number(els.day.value);
@@ -248,7 +248,7 @@
   });
   ['input','change'].forEach(evt=>els.weight.addEventListener(evt,scheduleSave));
   els.baseButton.addEventListener('click',()=>{els.baseInput.value=state.preWeight ?? '';els.dialog.showModal()});
-  els.saveBase.addEventListener('click',e=>{e.preventDefault();const v=+els.baseInput.value;if(Number.isFinite(v)&&v>=30&&v<=200){state={...state,preWeight:v};PregnancyStorage.save(state);els.baseLabel.textContent=v.toFixed(1)+' kg';els.dialog.close();render();flashSaved()}});
+  els.saveBase.addEventListener('click',e=>{e.preventDefault();const v=+els.baseInput.value;if(Number.isFinite(v)&&v>=30&&v<=200){state={...state,preWeight:v};PregnancyStorage.save(state);els.baseLabel.textContent=`孕前体重 ${v.toFixed(1)} kg`;els.dialog.close();render();flashSaved()}});
   els.clear.addEventListener('click',()=>{if(confirm('清空所有体重记录？')){state=PregnancyStorage.clearRecords(state);PregnancyStorage.save(state);els.weight.value='';showAllHistory=false;render()}});
   els.historyToggle.addEventListener('click',()=>{showAllHistory=!showAllHistory;renderHistory()});
   els.historyList.addEventListener('click',e=>{const item=e.target.closest('.history-item');if(item)openRecord(item.dataset.id)});
