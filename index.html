@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#090a0c" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="孕期体重" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>孕期体重</title>
+</head>
+<body>
+  <div class="ambient-orb orb-one" aria-hidden="true"></div>
+  <div class="ambient-orb orb-two" aria-hidden="true"></div>
+
+  <main class="app-shell">
+    <header class="hero reveal reveal-1">
+      <div>
+        <p class="eyebrow">PREGNANCY WEIGHT</p>
+        <h1>孕期体重</h1>
+        <p class="hero-subtitle">简单记录，安心看趋势。</p>
+      </div>
+      <button class="pregnancy-base liquid-pill" id="baseWeightButton" type="button" aria-label="修改孕前体重">
+        <span class="pill-dot"></span>孕前 <span id="baseWeightLabel">51.5</span> kg
+      </button>
+    <button class="install-hint-button" id="installHintButton" type="button">安装到主屏幕</button>
+</header>
+
+    <section class="entry-card liquid-card reveal reveal-2" aria-label="今日数据">
+      <div class="week-input-row">
+        <label class="field">
+          <span>孕周</span>
+          <div class="week-combo input-surface">
+            <input id="weekInput" inputmode="numeric" type="number" min="4" max="42" step="1" value="25" aria-label="孕周 周" />
+            <b>周</b>
+            <input id="dayInput" inputmode="numeric" type="number" min="0" max="6" step="1" value="0" aria-label="孕周 天" />
+            <b>天</b>
+          </div>
+        </label>
+        <label class="field weight-field">
+          <span>当前体重</span>
+          <div class="weight-input-wrap input-surface">
+            <input id="weightInput" inputmode="decimal" type="number" min="30" max="200" step="0.1" placeholder="--.-" aria-label="当前体重" />
+            <b>kg</b>
+          </div>
+        </label>
+      </div>
+      <div class="save-row">
+        <span class="save-indicator" aria-hidden="true"></span>
+        <p class="autosave-note" id="saveState">输入后自动保存到本机</p>
+      </div>
+    </section>
+
+    <section class="summary-grid reveal reveal-3" aria-live="polite">
+      <article class="metric-card liquid-card primary">
+        <div class="metric-icon target-icon" aria-hidden="true">↗</div>
+        <span>推荐体重</span>
+        <div><strong id="targetWeight">--.-</strong><small> kg</small></div>
+      </article>
+      <article class="metric-card liquid-card">
+        <div class="metric-icon range-icon" aria-hidden="true">↔</div>
+        <span>参考范围</span>
+        <div><strong class="range" id="weightRange">--.-–--.-</strong><small> kg</small></div>
+      </article>
+    </section>
+
+    <section class="insight-grid reveal reveal-4" id="insightGrid">
+      <article class="insight-card liquid-card">
+        <span>孕期累计增重</span>
+        <strong id="totalGainValue">--</strong>
+        <small id="totalGainMeta">输入当前体重后显示</small>
+      </article>
+      <article class="insight-card liquid-card">
+        <span>相对推荐线</span>
+        <strong id="positionValue">--</strong>
+        <small id="positionMeta">当前孕周参考</small>
+      </article>
+      <article class="insight-card liquid-card pace-card">
+        <span>近期增重速度</span>
+        <strong id="paceStatusValue">--</strong>
+        <small id="paceStatusMeta">至少需要两条记录</small>
+      </article>
+    </section>
+
+    <section class="trend-grid reveal reveal-4" id="trendGrid" hidden>
+      <article class="trend-card liquid-card">
+        <span>较上次</span>
+        <strong id="sinceLastValue">--</strong>
+        <small id="sinceLastMeta">暂无足够记录</small>
+      </article>
+      <article class="trend-card liquid-card">
+        <span>近4周增速</span>
+        <strong id="fourWeekValue">--</strong>
+        <small id="fourWeekMeta">暂无足够记录</small>
+      </article>
+    </section>
+
+    <section class="chart-card liquid-card reveal reveal-5">
+      <div class="chart-head">
+        <div>
+          <span class="section-label">体重曲线</span>
+          <h2 id="chartHeadline">本周参考</h2>
+        </div>
+        <div class="legend" aria-label="图例">
+          <span><i class="dot actual"></i>我的体重</span>
+          <span><i class="dot target"></i>推荐</span>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <canvas id="weightChart" role="img" aria-label="孕期体重曲线"></canvas>
+        <div class="chart-empty" id="chartEmpty">输入当前体重后，会显示你的体重记录</div>
+        <div class="chart-tooltip" id="chartTooltip" hidden>
+          <span id="tooltipWeek">25周</span>
+          <strong id="tooltipWeight">57.9 kg</strong>
+        </div>
+      </div>
+      <div class="chart-footer">
+        <span>4周</span><span>13周</span><span>28周</span><span>40周</span>
+      </div>
+      <p class="chart-hint">轻触曲线可查看记录</p>
+    </section>
+
+    <section class="history-card liquid-card reveal reveal-6" id="historyCard" hidden>
+      <div class="history-head">
+        <div>
+          <span class="section-label">历史记录</span>
+          <small id="historyCount" class="history-count">0 条</small>
+        </div>
+        <button id="clearHistoryButton" class="text-button" type="button">清空</button>
+      </div>
+      <div id="historyList" class="history-list"></div>
+      <button id="historyToggle" class="history-toggle" type="button" hidden>查看全部</button>
+    </section>
+
+    <p class="disclaimer">参考曲线用于日常记录，不替代产检或医生的个体化建议。</p>
+    
+    <section class="backup-panel liquid-card reveal" id="backupPanel">
+      <div class="backup-copy">
+        <span>数据备份</span>
+        <strong>导出 / 恢复体重记录</strong>
+        <small>备份包含孕前体重、历史记录和当前孕周设置。文件只保存在你的设备上。</small>
+      </div>
+      <div class="backup-actions">
+        <button type="button" class="backup-button primary" id="exportBackupButton">导出备份</button>
+        <button type="button" class="backup-button" id="importBackupButton">导入备份</button>
+        <input type="file" id="backupFileInput" accept=".json,application/json" hidden>
+      </div>
+      <div class="backup-status" id="backupStatus" hidden></div>
+    </section>
+
+  <section class="install-sheet liquid-card" id="installSheet" hidden aria-live="polite">
+    <button class="install-sheet-close" id="installSheetClose" aria-label="关闭">×</button>
+    <div class="install-icon">↗</div>
+    <div>
+      <strong>添加到 iPhone 主屏幕</strong>
+      <p>在 Safari 中点“分享”，再选“添加到主屏幕”。安装后会全屏打开，并可离线使用。</p>
+    </div>
+  </section>
+</main>
+
+  <dialog id="settingsDialog" class="sheet">
+    <form method="dialog" class="sheet-panel" id="settingsForm">
+      <div class="sheet-handle"></div>
+      <div class="sheet-icon" aria-hidden="true">◌</div>
+      <h2>孕前体重</h2>
+      <p>这个数值会作为整条参考曲线的起点。</p>
+      <label class="sheet-input">
+        <input id="baseWeightInput" type="number" inputmode="decimal" min="30" max="200" step="0.1" value="51.5" />
+        <span>kg</span>
+      </label>
+      <div class="sheet-actions">
+        <button value="cancel" class="secondary-button">取消</button>
+        <button value="default" id="saveBaseWeightButton" class="primary-button">保存</button>
+      </div>
+      <details>
+        <summary>参考曲线说明</summary>
+        <p>当前版本采用单胎、孕前 BMI 正常范围的常用增重参考：孕早期总增重约 0.5–2.0 kg；之后约 0.35–0.50 kg/周。若你的医生给了专属目标，应以医生建议为准。</p>
+      </details>
+    </form>
+  </dialog>
+
+  <dialog id="recordDialog" class="sheet">
+    <form method="dialog" class="sheet-panel" id="recordForm">
+      <div class="sheet-handle"></div>
+      <div class="sheet-icon" aria-hidden="true">✎</div>
+      <h2>编辑记录</h2>
+      <p id="recordDialogWeek">孕周记录</p>
+      <label class="sheet-input">
+        <input id="recordWeightInput" inputmode="decimal" enterkeyhint="done" type="number" inputmode="decimal" min="30" max="200" step="0.1" />
+        <span>kg</span>
+      </label>
+      <div class="record-actions">
+        <button type="button" id="deleteRecordButton" class="danger-button">删除记录</button>
+      </div>
+      <div class="sheet-actions">
+        <button value="cancel" class="secondary-button">取消</button>
+        <button value="default" id="saveRecordButton" class="primary-button">保存修改</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="data.js"></script>
+  <script src="calculator.js"></script>
+  <script src="storage.js"></script>
+  <script src="chart.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
