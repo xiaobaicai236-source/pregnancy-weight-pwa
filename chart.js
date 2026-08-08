@@ -29,7 +29,7 @@
     const maxWeek=Number(opts.maxWeek ?? 40);
     const recFn=opts.recommendationAtWeek || (()=>({low:0,target:0,high:0}));
 
-    const pad={l:40,r:16,t:24,b:36};
+    const pad={l:40,r:54,t:24,b:36};
     const plotW=width-pad.l-pad.r, plotH=height-pad.t-pad.b;
     const samples=[];
     for(let w=minWeek;w<=maxWeek+0.001;w+=0.5){
@@ -85,6 +85,30 @@
     ctx.beginPath();
     samples.forEach((s,i)=>i?ctx.lineTo(x(s.w),y(s.target)):ctx.moveTo(x(s.w),y(s.target)));
     ctx.stroke(); ctx.restore();
+
+    // Reference labels at the right edge
+    const end=samples.at(-1);
+    if(end){
+      const edgeX=x(end.w);
+      const labels=[
+        {text:'上限',value:end.high,alpha:.72},
+        {text:'中位数',value:end.target,alpha:1},
+        {text:'下限',value:end.low,alpha:.72}
+      ];
+      ctx.save();
+      ctx.strokeStyle=cssVar('--green','#34c759');
+      ctx.fillStyle=cssVar('--green','#34c759');
+      ctx.lineWidth=1;
+      ctx.font='600 10px -apple-system,BlinkMacSystemFont,sans-serif';
+      ctx.textAlign='left'; ctx.textBaseline='middle';
+      labels.forEach(label=>{
+        const yy=y(label.value);
+        ctx.globalAlpha=label.alpha;
+        ctx.beginPath(); ctx.moveTo(edgeX+2,yy); ctx.lineTo(edgeX+8,yy); ctx.stroke();
+        ctx.fillText(label.text,edgeX+11,yy);
+      });
+      ctx.restore();
+    }
 
     // Current gestation marker
     if(currentWeek>=minWeek && currentWeek<=maxWeek){
