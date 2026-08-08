@@ -1,13 +1,13 @@
-const CACHE='pregnancy-weight-v1.7.1';
+const CACHE='pregnancy-weight-v1.7.2-ui';
 const SHELL=[
   './',
   './index.html',
-  './style.css?v=1.6.1',
+  './style.css?v=1.7.2',
   './data.js?v=1.6.1',
   './calculator.js?v=1.6.1',
   './storage.js?v=1.6.1',
   './chart.js?v=1.6.1',
-  './app.js?v=1.6.1',
+  './app.js?v=1.7.2',
   './manifest.json?v=1.6.1',
   './assets/icon-192.png',
   './assets/icon-512.png',
