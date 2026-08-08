@@ -142,6 +142,28 @@
       ctx.restore();
     }
 
+    // Recommended points at the same gestational positions as actual records
+    const recommendedPoints=records.map(record=>{
+      const gestation=Number(record.gestation);
+      const recommendation=recFn(gestation);
+      return {gestation,target:Number(recommendation?.target)};
+    }).filter(point=>
+      Number.isFinite(point.gestation) &&
+      Number.isFinite(point.target) &&
+      point.gestation>=minWeek && point.gestation<=maxWeek
+    );
+    if(recommendedPoints.length){
+      ctx.save();
+      ctx.strokeStyle=cssVar('--green','#34c759');
+      ctx.lineWidth=2;
+      recommendedPoints.forEach(point=>{
+        ctx.beginPath();
+        ctx.arc(x(point.gestation),y(point.target),5,0,Math.PI*2);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+
     // X axis
     ctx.save();
     ctx.fillStyle=cssVar('--muted','#8e8e93');
