@@ -6,7 +6,7 @@
     chart:$('weightChart'), chartWrap:$('chartWrap'), chartEmpty:$('chartEmpty'), chartHeadline:$('chartHeadline'), historyCard:$('historyCard'), historyList:$('historyList'), clear:$('clearHistoryButton'),
     tooltip:$('chartTooltip'), tooltipWeek:$('tooltipWeek'), tooltipWeight:$('tooltipWeight'), trendGrid:$('trendGrid'), sinceLast:$('sinceLastValue'), sinceLastMeta:$('sinceLastMeta'), fourWeek:$('fourWeekValue'), fourWeekMeta:$('fourWeekMeta'),
     historyCount:$('historyCount'), historyToggle:$('historyToggle'), recordDialog:$('recordDialog'), recordDialogWeek:$('recordDialogWeek'), recordWeight:$('recordWeightInput'), saveRecord:$('saveRecordButton'), deleteRecord:$('deleteRecordButton'),
-    insightGrid:$('insightGrid'), totalGain:$('totalGainValue'), totalGainMeta:$('totalGainMeta'), position:$('positionValue'), positionMeta:$('positionMeta'), paceStatus:$('paceStatusValue'), paceStatusMeta:$('paceStatusMeta'), chartDetail:$('chartDetail'), chartDetailWeek:$('chartDetailWeek'), chartDetailWeight:$('chartDetailWeight'), chartDetailMeta:$('chartDetailMeta'), installSheet:$('installSheet'), installHintButton:$('installHintButton'), installSheetClose:$('installSheetClose'), exportBackup:$('exportBackupButton'), importBackup:$('importBackupButton'), backupFile:$('backupFileInput'), backupStatus:$('backupStatus')
+    insightGrid:$('insightGrid'), totalGain:$('totalGainValue'), totalGainMeta:$('totalGainMeta'), position:$('positionValue'), positionMeta:$('positionMeta'), paceStatus:$('paceStatusValue'), paceStatusMeta:$('paceStatusMeta'), chartDetail:$('chartDetail'), chartDetailWeek:$('chartDetailWeek'), chartDetailWeight:$('chartDetailWeight'), chartDetailMeta:$('chartDetailMeta'), exportBackup:$('exportBackupButton'), importBackup:$('importBackupButton'), backupFile:$('backupFileInput'), backupStatus:$('backupStatus')
   };
   let state = PregnancyStorage.load();
   let saveTimer, tooltipTimer, editingId = null, showAllHistory = false;
@@ -94,27 +94,6 @@
       maxWeek:PregnancyData.maxWeek,
       recommendationAtWeek:(w)=>PregnancyCalculator.recommendation(state.preWeight,w)
     });
-  }
-  function isStandalone(){
-    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  }
-  function isIOS(){
-    return /iphone|ipad|ipod/i.test(navigator.userAgent);
-  }
-  function setupInstallUX(){
-    if(!els.installHintButton)return;
-    if(isStandalone()){
-      els.installHintButton.hidden=true;
-      if(els.installSheet)els.installSheet.hidden=true;
-      return;
-    }
-    els.installHintButton.addEventListener('click',()=>{
-      if(els.installSheet)els.installSheet.hidden=false;
-    });
-    els.installSheetClose?.addEventListener('click',()=>{
-      els.installSheet.hidden=true;
-    });
-    if(!isIOS()) els.installHintButton.textContent='安装说明';
   }
   function setupInputPolish(){
     const inputs=[els.week, els.day, els.weight, els.recordWeight].filter(Boolean);
@@ -255,7 +234,6 @@
 
   hydrate();
   PregnancyChart.init(els.chart);
-  setupInstallUX();
   setupInputPolish();
   setupBackupUX();
   render();
