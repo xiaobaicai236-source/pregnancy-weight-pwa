@@ -1,4 +1,4 @@
-const CACHE='pregnancy-weight-v1.7.2-ui';
+const CACHE='pregnancy-weight-v1.7.2-chart-labels';
 const SHELL=[
   './',
   './index.html',
@@ -6,7 +6,7 @@ const SHELL=[
   './data.js?v=1.6.1',
   './calculator.js?v=1.6.1',
   './storage.js?v=1.6.1',
-  './chart.js?v=1.6.1',
+  './chart.js?v=1.7.2',
   './app.js?v=1.7.2',
   './manifest.json?v=1.6.1',
   './assets/icon-192.png',
