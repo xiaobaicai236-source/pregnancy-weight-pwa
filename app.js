@@ -11,8 +11,27 @@
   let state = PregnancyStorage.load();
   let saveTimer, tooltipTimer, editingId = null, showAllHistory = false;
 
-  function hydrate(){els.week.value=state.week;els.day.value=state.day;els.weight.value=state.currentWeight||'';els.baseInput.value=state.preWeight;els.baseLabel.textContent=Number(state.preWeight).toFixed(1)}
-  function validInputs(){let w=Math.min(42,Math.max(4,+els.week.value||25));let d=Math.min(6,Math.max(0,+els.day.value||0));els.week.value=w;els.day.value=d;return {w,d}}
+  function hydrate(){
+    els.week.value=state.week;
+    els.day.value=state.day;
+    els.weight.value=state.currentWeight||'';
+    els.baseInput.value=state.preWeight ?? '';
+    els.baseLabel.textContent = Number.isFinite(Number(state.preWeight))
+      ? Number(state.preWeight).toFixed(1)+' kg'
+      : '请输入准妈妈孕前体重';
+  }
+  function readInputs(commit=false){
+    const rawW=Number(els.week.value), rawD=Number(els.day.value);
+    let w=Number.isFinite(rawW)&&rawW>=4&&rawW<=42?rawW:state.week;
+    let d=Number.isFinite(rawD)&&rawD>=0&&rawD<=6?rawD:state.day;
+    if(commit){
+      w=Math.min(42,Math.max(4,Number.isFinite(rawW)?rawW:state.week));
+      d=Math.min(6,Math.max(0,Number.isFinite(rawD)?rawD:state.day));
+      els.week.value=w;
+      els.day.value=d;
+    }
+    return {w,d};
+  }
   function fmtDelta(v){const n=Number(v);return `${n>0?'+':''}${n.toFixed(1)} kg`}
   function paceAnalysis(records){
     const sorted=[...records].sort((a,b)=>a.gestation-b.gestation);
@@ -98,7 +117,7 @@
     if(!isIOS()) els.installHintButton.textContent='安装说明';
   }
   function setupInputPolish(){
-    const inputs=[els.weight, els.recordWeight].filter(Boolean);
+    const inputs=[els.week, els.day, els.weight, els.recordWeight].filter(Boolean);
     inputs.forEach(input=>{
       input.addEventListener('focus',()=>setTimeout(()=>input.select?.(),60));
       input.addEventListener('keydown',(e)=>{
@@ -180,14 +199,11 @@
       state.week=incoming.week;
       state.day=incoming.day;
       state.records=merged;
-      PregnancyStorage.saveSettings({preWeight:state.preWeight,week:state.week,day:state.day});
-      PregnancyStorage.saveRecords(state.records);
-      if(els.weight){
-        const latest=[...state.records].sort((a,b)=>a.gestation-b.gestation).at(-1);
-        if(latest) els.weight.value=latest.weight.toFixed(1);
-      }
-      setupBackupUX();
-  render();
+      const latest=[...state.records].sort((a,b)=>a.gestation-b.gestation).at(-1);
+      state.currentWeight=latest ? latest.weight : '';
+      state=PregnancyStorage.replaceData(state);
+      hydrate();
+      render();
       showBackupStatus(`导入完成 · 当前共 ${state.records.length} 条记录`);
     }catch(err){
       console.error(err);
@@ -205,7 +221,7 @@
     });
   }
   function render(){
-    const {w,d}=validInputs(); const rec=PregnancyCalculator.recommendation(state.preWeight,w,d);
+    const {w,d}=readInputs(false); const rec=PregnancyCalculator.recommendation(state.preWeight,w,d);
     els.target.textContent=rec.target.toFixed(1); els.range.textContent=`${rec.low.toFixed(1)}–${rec.high.toFixed(1)}`;
     els.chartHeadline.textContent=`${w}周${d?d+'天':''} · 参考 ${rec.target.toFixed(1)} kg`;
     const curve=PregnancyCalculator.curve(state.preWeight); PregnancyChart.draw({curve,records:state.records,currentGestation:rec.gestation});
@@ -225,7 +241,9 @@
     els.historyList.innerHTML=list.map((r,i)=>{const older=records[i+1];const delta=older?r.weight-older.weight:null;return `<button class="history-item" data-id="${r.id}" type="button"><div class="history-left"><i class="history-bullet"></i><div><span>${r.week}周${r.day?`${r.day}天`:''}</span><small>${delta===null?'首次记录':`较上次 ${fmtDelta(delta)}`}</small></div></div><div class="history-value"><strong>${Number(r.weight).toFixed(1)} kg</strong><span>›</span></div></button>`}).join('')
   }
   function persistCurrent(){
-    const {w,d}=validInputs(); const value=+els.weight.value;
+    const hasWeek = els.week.value.trim() !== '' && Number.isFinite(Number(els.week.value));
+    const hasDay = els.day.value.trim() !== '' && Number.isFinite(Number(els.day.value));
+    const {w,d}=readInputs(hasWeek || hasDay); const value=+els.weight.value;
     if(Number.isFinite(value)&&value>=30&&value<=200){state=PregnancyStorage.addRecord(state,w,d,value);PregnancyStorage.save(state);flashSaved()}
     else{state={...state,week:w,day:d,currentWeight:els.weight.value};PregnancyStorage.save(state)} render();
   }
@@ -235,10 +253,24 @@
   function hideTooltip(){els.tooltip.hidden=true}
   function openRecord(id){const r=state.records.find(x=>x.id===id);if(!r)return;editingId=id;els.recordDialogWeek.textContent=`${r.week}周${r.day?`${r.day}天`:''}`;els.recordWeight.value=Number(r.weight).toFixed(1);els.recordDialog.showModal()}
 
-  hydrate(); PregnancyChart.init(els.chart); render();
-  ['input','change'].forEach(evt=>{els.week.addEventListener(evt,scheduleSave);els.day.addEventListener(evt,scheduleSave);els.weight.addEventListener(evt,scheduleSave)});
-  els.baseButton.addEventListener('click',()=>{els.baseInput.value=state.preWeight;els.dialog.showModal()});
-  els.saveBase.addEventListener('click',e=>{e.preventDefault();const v=+els.baseInput.value;if(Number.isFinite(v)&&v>=30&&v<=200){state={...state,preWeight:v};PregnancyStorage.save(state);els.baseLabel.textContent=v.toFixed(1);els.dialog.close();render();flashSaved()}});
+  hydrate();
+  PregnancyChart.init(els.chart);
+  setupInstallUX();
+  setupInputPolish();
+  setupBackupUX();
+  render();
+  let previewTimer;
+  [els.week,els.day].forEach(input=>{
+    input.addEventListener('input',()=>{
+      clearTimeout(previewTimer);
+      previewTimer=setTimeout(()=>requestAnimationFrame(render),80);
+    });
+    input.addEventListener('change',persistCurrent);
+    input.addEventListener('blur',persistCurrent);
+  });
+  ['input','change'].forEach(evt=>els.weight.addEventListener(evt,scheduleSave));
+  els.baseButton.addEventListener('click',()=>{els.baseInput.value=state.preWeight ?? '';els.dialog.showModal()});
+  els.saveBase.addEventListener('click',e=>{e.preventDefault();const v=+els.baseInput.value;if(Number.isFinite(v)&&v>=30&&v<=200){state={...state,preWeight:v};PregnancyStorage.save(state);els.baseLabel.textContent=v.toFixed(1)+' kg';els.dialog.close();render();flashSaved()}});
   els.clear.addEventListener('click',()=>{if(confirm('清空所有体重记录？')){state=PregnancyStorage.clearRecords(state);PregnancyStorage.save(state);els.weight.value='';showAllHistory=false;render()}});
   els.historyToggle.addEventListener('click',()=>{showAllHistory=!showAllHistory;renderHistory()});
   els.historyList.addEventListener('click',e=>{const item=e.target.closest('.history-item');if(item)openRecord(item.dataset.id)});
@@ -247,5 +279,7 @@
   [els.dialog,els.recordDialog].forEach(d=>d.addEventListener('click',e=>{if(e.target===d)d.close()}));
   els.chartWrap.addEventListener('pointerdown',showTooltip); els.chartWrap.addEventListener('pointermove',e=>{if(e.pointerType==='mouse')showTooltip(e)}); els.chartWrap.addEventListener('pointerleave',hideTooltip);
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',()=>requestAnimationFrame(render));
+  let resizeTimer;
+  window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>requestAnimationFrame(render),120)});
   if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}))}
 })();
