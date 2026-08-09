@@ -59,6 +59,11 @@ assert.ok(drawnText.some(text=>text.startsWith('推荐中位数 ')));
 assert.ok(drawnText.some(text=>text.startsWith('推荐下限 ')));
 assert.ok(drawnText.includes('通用推荐范围，仅供趋势参考'));
 
+canvasWidth=327;
+const scaledResult=PregnancyChart.showCrosshair(clientX(18)/2,120);
+assert.equal(scaledResult.week,18,'Canvas显示宽度变化时仍应按当前边界换算手指坐标');
+canvasWidth=654;
+
 assert.equal(PregnancyChart.hasCrosshair(),true);
 PregnancyChart.clearCrosshair();assert.equal(PregnancyChart.hasCrosshair(),false);
 assert.equal(PregnancyChart.showCrosshair(2,2),null,'绘图区外不显示十字定位');

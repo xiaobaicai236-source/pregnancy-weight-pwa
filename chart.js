@@ -206,9 +206,15 @@
     drawChart(canvas,{records,currentWeek:currentGestation,minWeek:1,maxWeek:40+6/7,recommendationAtWeek:curve.length?nearestRecommendation:null});
   }
   function nearest(clientX,clientY){return nearestPoint(canvas,clientX,clientY);}
+  // Normalize viewport coordinates like Chart.js so CSS sizing, zoom and rotation
+  // cannot create a fixed gap between the finger and the crosshair.
+  function localPosition(frame,clientX,clientY){
+    const rect=frame.element.getBoundingClientRect(),scaleX=rect.width?frame.width/rect.width:1,scaleY=rect.height?frame.height/rect.height:1;
+    return {x:(clientX-rect.left)*scaleX,y:(clientY-rect.top)*scaleY};
+  }
   function showCrosshair(clientX,clientY){
     const frame=lastFrame;if((!frame?.generalRecFn&&!frame?.doctorRecFn)||!frame.element)return clearCrosshair();
-    const rect=frame.element.getBoundingClientRect(),px=clientX-rect.left,py=clientY-rect.top;
+    const {x:px,y:py}=localPosition(frame,clientX,clientY);
     if(py<frame.pad.t||py>frame.height-frame.pad.b||px<frame.pad.l||px>frame.pad.l+frame.plotW)return clearCrosshair();
     const maxQueryWeek=Math.min(40,frame.maxWeek),raw=frame.minWeek+(px-frame.pad.l)/frame.plotW*(frame.maxWeek-frame.minWeek);
     const totalDays=Math.round(Math.max(frame.minWeek,Math.min(maxQueryWeek,raw))*7),gestation=totalDays/7;

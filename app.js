@@ -455,37 +455,33 @@
   }
   let chartGesture=null;
   function beginChartInteraction(event){
-    if(event.pointerType==='mouse'&&event.button!==0)return;
+    if(event.pointerType!=='mouse'||event.button!==0)return;
     hideTooltip();
-    if(event.pointerType!=='mouse'){
-      const provisional=Boolean(PregnancyChart.showCrosshair(event.clientX,event.clientY));
-      dismissChartGuide();chartGesture={pointerId:event.pointerId,pointerType:event.pointerType,startX:event.clientX,startY:event.clientY,mode:'pending',moved:false,captured:false,provisional};return;
-    }
     const query=PregnancyChart.showCrosshair(event.clientX,event.clientY);if(!query){showTooltip(event);return;}
-    dismissChartGuide();chartGesture={pointerId:event.pointerId,pointerType:'mouse',startX:event.clientX,startY:event.clientY,mode:'query',moved:false,captured:false};
+    dismissChartGuide();chartGesture={pointerId:event.pointerId,pointerType:'mouse',startX:event.clientX,startY:event.clientY,anchorClientY:event.clientY,mode:'query',moved:false,captured:false};
     try{els.chartWrap.setPointerCapture(event.pointerId);chartGesture.captured=true;}catch{}
   }
-  function resolvePendingChartGesture(clientX,clientY){
+  function resolvePendingChartGesture(deltaX,deltaY,clientX){
     if(!chartGesture||chartGesture.mode!=='pending')return chartGesture?.mode;
-    const deltaX=clientX-chartGesture.startX,deltaY=clientY-chartGesture.startY,intent=chartGestureIntent(deltaX,deltaY);
+    const intent=chartGestureIntent(deltaX,deltaY);
     if(intent==='pending')return intent;
     chartGesture.moved=true;
     if(intent==='scroll'){chartGesture.mode='scroll';cancelScheduledCrosshair();PregnancyChart.clearCrosshair();return 'scroll';}
-    const query=PregnancyChart.showCrosshair(clientX,chartGesture.startY);
+    const query=PregnancyChart.showCrosshair(clientX,chartGesture.anchorClientY);
     if(!query){chartGesture.mode='scroll';return 'scroll';}
     chartGesture.mode='query';
-    try{els.chartWrap.setPointerCapture(chartGesture.pointerId);chartGesture.captured=true;}catch{}
     return 'query';
   }
   function moveChartInteraction(event){
+    if(event.pointerType!=='mouse')return;
     if(chartGesture?.pointerId===event.pointerId){
       const deltaX=event.clientX-chartGesture.startX,deltaY=event.clientY-chartGesture.startY;
       if(chartGesture.mode==='pending'){
-        if(resolvePendingChartGesture(event.clientX,event.clientY)==='query'&&event.cancelable)event.preventDefault();
+        if(resolvePendingChartGesture(deltaX,deltaY,event.clientX)==='query'&&event.cancelable)event.preventDefault();
         return;
       }
       if(chartGesture.mode==='query'){
-        chartGesture.moved=chartGesture.moved||Math.abs(deltaX)>6;event.preventDefault();scheduleCrosshair(event.clientX,chartGesture.startY);
+        chartGesture.moved=chartGesture.moved||Math.abs(deltaX)>6;event.preventDefault();scheduleCrosshair(event.clientX,chartGesture.anchorClientY);
       }
       return;
     }
@@ -498,14 +494,32 @@
     if(captured&&pointerId!==undefined)try{if(els.chartWrap.hasPointerCapture(pointerId))els.chartWrap.releasePointerCapture(pointerId);}catch{}
     if(shouldShowPoint)showTooltip(event);
   }
-  function preventLockedChartScroll(event){
-    if(!chartGesture||chartGesture.pointerType==='mouse')return;
-    const touch=event.touches?.[0];if(chartGesture.mode==='pending'&&touch)resolvePendingChartGesture(touch.clientX,touch.clientY);
-    if(chartGesture.mode==='query'&&touch){
-      chartGesture.moved=chartGesture.moved||Math.abs(touch.clientX-chartGesture.startX)>6;
-      scheduleCrosshair(touch.clientX,chartGesture.startY);
+  // Mobile touch flow follows the single-touch architecture used by
+  // TradingView Lightweight Charts; one physical gesture uses one event path.
+  function activeChartTouch(list){
+    if(!chartGesture||chartGesture.pointerType!=='touch')return null;
+    return Array.from(list||[]).find(touch=>touch.identifier===chartGesture.touchId)||null;
+  }
+  function beginChartTouch(event){
+    if(chartGesture||event.touches?.length!==1)return;
+    const touch=event.changedTouches?.[0]||event.touches[0];if(!touch)return;
+    hideTooltip();const provisional=Boolean(PregnancyChart.showCrosshair(touch.clientX,touch.clientY));
+    dismissChartGuide();chartGesture={pointerType:'touch',touchId:touch.identifier,startX:touch.pageX,startY:touch.pageY,anchorClientY:touch.clientY,mode:'pending',moved:false,captured:false,provisional};
+  }
+  function moveChartTouch(event){
+    const touch=activeChartTouch(event.changedTouches)||activeChartTouch(event.touches);if(!touch)return;
+    const deltaX=touch.pageX-chartGesture.startX,deltaY=touch.pageY-chartGesture.startY;
+    if(chartGesture.mode==='pending')resolvePendingChartGesture(deltaX,deltaY,touch.clientX);
+    if(chartGesture.mode==='query'){
+      chartGesture.moved=chartGesture.moved||Math.abs(deltaX)>6;
+      scheduleCrosshair(touch.clientX,chartGesture.anchorClientY);
       if(event.cancelable)event.preventDefault();
     }
+  }
+  function finishChartTouch(event){
+    const touch=activeChartTouch(event.changedTouches);if(!touch)return;
+    const showPoint=chartGesture.mode!=='scroll'&&!chartGesture.moved;
+    finishChartInteraction({clientX:touch.clientX,clientY:touch.clientY},{showPoint});
   }
   function completeDoctorNumber(value,{optional=false}={}){
     const text=String(value??'').trim();if(optional&&text==='')return null;
@@ -571,12 +585,14 @@
   [els.dialog,els.recordDialog].forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
   els.chartWrap.addEventListener('pointerdown',beginChartInteraction);
   els.chartWrap.addEventListener('pointermove',moveChartInteraction);
-  els.chartWrap.addEventListener('pointerup',event=>finishChartInteraction(event,{showPoint:true}));
-  els.chartWrap.addEventListener('pointercancel',event=>finishChartInteraction(event));
-  els.chartWrap.addEventListener('pointerleave',event=>{if(chartGesture?.pointerType!=='mouse'&&chartGesture?.mode==='query')return;hideTooltip();finishChartInteraction(event);});
-  els.chartWrap.addEventListener('lostpointercapture',event=>finishChartInteraction(event));
-  els.chartWrap.addEventListener('touchmove',preventLockedChartScroll,{passive:false});
-  els.chartWrap.addEventListener('touchcancel',event=>finishChartInteraction(event));
+  els.chartWrap.addEventListener('pointerup',event=>{if(event.pointerType==='mouse')finishChartInteraction(event,{showPoint:true});});
+  els.chartWrap.addEventListener('pointercancel',event=>{if(event.pointerType==='mouse')finishChartInteraction(event);});
+  els.chartWrap.addEventListener('pointerleave',event=>{if(event.pointerType==='mouse'){hideTooltip();finishChartInteraction(event);}});
+  els.chartWrap.addEventListener('lostpointercapture',event=>{if(event.pointerType==='mouse')finishChartInteraction(event);});
+  els.chartWrap.addEventListener('touchstart',beginChartTouch,{passive:true});
+  document.documentElement.addEventListener('touchmove',moveChartTouch,{passive:false});
+  document.documentElement.addEventListener('touchend',finishChartTouch,{passive:false});
+  document.documentElement.addEventListener('touchcancel',event=>{if(activeChartTouch(event.changedTouches))finishChartInteraction({});},{passive:false});
   window.addEventListener('blur',()=>{hideTooltip();finishChartInteraction({});});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){hideTooltip();finishChartInteraction({});}});
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',()=>requestAnimationFrame(render));
