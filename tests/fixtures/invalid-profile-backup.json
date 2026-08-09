@@ -1,0 +1,14 @@
+{
+  "schema": "pregnancy-weight-pwa-backup",
+  "version": 2,
+  "data": {
+    "preWeight": 0,
+    "heightCm": 165,
+    "plurality": "singleton",
+    "week": 25,
+    "day": 0,
+    "records": [
+      {"id":"175d","week":25,"day":0,"gestation":25,"weight":58,"updatedAt":1}
+    ]
+  }
+}

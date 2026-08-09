@@ -1,0 +1,18 @@
+{
+  "schema": "pregnancy-weight-pwa-backup",
+  "version": 2,
+  "appVersion": "1.8.0",
+  "data": {
+    "preWeight": 60,
+    "heightCm": 165,
+    "plurality": "singleton",
+    "pluralityConfirmed": true,
+    "week": 40,
+    "day": 0,
+    "records": [
+      {"id":"252d","week":36,"day":0,"gestation":36,"weight":70,"updatedAt":9000000000001},
+      {"id":"266d","week":38,"day":0,"gestation":38,"weight":70.8,"updatedAt":9000000000002},
+      {"id":"280d","week":40,"day":0,"gestation":40,"weight":71.6,"updatedAt":9000000000003}
+    ]
+  }
+}

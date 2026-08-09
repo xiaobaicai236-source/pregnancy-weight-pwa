@@ -1,0 +1,15 @@
+{
+  "schema": "pregnancy-weight-pwa-backup",
+  "version": 1,
+  "appVersion": "1.7.2",
+  "data": {
+    "preWeight": 52,
+    "week": 30,
+    "day": 2,
+    "records": [
+      {"id":"196d","week":28,"day":0,"gestation":28,"weight":61,"updatedAt":100},
+      {"week":30,"day":2,"gestation":30.285714285714285,"weight":62.2,"updatedAt":200},
+      {"id":"bad<script>d","week":29,"day":0,"gestation":29,"weight":61.5,"updatedAt":150}
+    ]
+  }
+}
