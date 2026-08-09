@@ -28,26 +28,27 @@
     ctx.fillStyle=cssVar('--text','#17181b');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,left+tagW/2,top+tagH/2+.5);ctx.restore();
   }
   function drawRangeInfo(ctx,query,xx,frame){
-    const {pad,plotW}=frame,boxW=Math.min(174,plotW-14),boxH=106;
+    const {pad,plotW}=frame,boxW=Math.min(174,plotW-14);
     const left=xx>pad.l+plotW/2?pad.l+7:pad.l+plotW-boxW-7,top=pad.t+7;
     const colors={upper:cssVar('--range-upper','#a45116'),middle:cssVar('--range-middle','#0f7335'),lower:cssVar('--range-lower','#006fa8')};
-    const soft={upper:cssVar('--range-upper-soft','rgba(164,81,22,.10)'),middle:cssVar('--range-middle-soft','rgba(22,138,67,.10)'),lower:cssVar('--range-lower-soft','rgba(0,111,168,.10)')};
-    ctx.save();roundedRect(ctx,left,top,boxW,boxH,11);ctx.fillStyle=cssVar('--panel-solid','#fff');ctx.globalAlpha=.97;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=cssVar('--line-strong','rgba(127,127,127,.22)');ctx.lineWidth=1;ctx.stroke();
-    ctx.fillStyle=cssVar('--text','#17181b');ctx.font='700 10px -apple-system,BlinkMacSystemFont,sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(`${query.week}周${query.day}天`,left+11,top+13);
+    const outline=cssVar('--chart-label-outline','rgba(255,255,255,.92)');
+    const text=(value,x,y,{color=cssVar('--text','#17181b'),font='600 9px -apple-system,BlinkMacSystemFont,sans-serif'}={})=>{
+      ctx.font=font;ctx.strokeStyle=outline;ctx.lineWidth=2.4;ctx.lineJoin='round';ctx.strokeText(value,x,y);ctx.fillStyle=color;ctx.fillText(value,x,y);
+    };
+    ctx.save();ctx.textAlign='left';ctx.textBaseline='middle';text(`${query.week}周${query.day}天`,left+4,top+10,{font:'700 10px -apple-system,BlinkMacSystemFont,sans-serif'});
     const rows=[
       {key:'upper',label:'推荐上限',value:query.high,shape:'bar'},
       {key:'middle',label:'推荐中位数',value:query.target,shape:'ring'},
       {key:'lower',label:'推荐下限',value:query.low,shape:'diamond'}
     ];
     rows.forEach((row,index)=>{
-      const rowTop=top+25+index*21,rowY=rowTop+8;
-      roundedRect(ctx,left+7,rowTop,boxW-14,17,6);ctx.fillStyle=soft[row.key];ctx.fill();ctx.strokeStyle=colors[row.key];ctx.fillStyle=colors[row.key];ctx.lineWidth=row.shape==='ring'?2:1.7;
-      if(row.shape==='bar'){ctx.beginPath();ctx.moveTo(left+13,rowY);ctx.lineTo(left+23,rowY);ctx.stroke();}
-      else if(row.shape==='ring'){ctx.beginPath();ctx.arc(left+18,rowY,4,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(left+18,rowY,1.5,0,Math.PI*2);ctx.fill();}
-      else{ctx.beginPath();ctx.moveTo(left+18,rowY-4);ctx.lineTo(left+22,rowY);ctx.lineTo(left+18,rowY+4);ctx.lineTo(left+14,rowY);ctx.closePath();ctx.fill();}
-      ctx.fillStyle=cssVar('--text','#17181b');ctx.font=`${row.shape==='ring'?'700':'600'} 9px -apple-system,BlinkMacSystemFont,sans-serif`;ctx.fillText(`${row.label} ${row.value.toFixed(1)} kg`,left+29,rowY+.5);
+      const rowY=top+29+index*18;ctx.strokeStyle=colors[row.key];ctx.fillStyle=colors[row.key];ctx.lineWidth=row.shape==='ring'?2:1.7;
+      if(row.shape==='bar'){ctx.beginPath();ctx.moveTo(left+4,rowY);ctx.lineTo(left+14,rowY);ctx.stroke();}
+      else if(row.shape==='ring'){ctx.beginPath();ctx.arc(left+9,rowY,4,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(left+9,rowY,1.5,0,Math.PI*2);ctx.fill();}
+      else{ctx.beginPath();ctx.moveTo(left+9,rowY-4);ctx.lineTo(left+13,rowY);ctx.lineTo(left+9,rowY+4);ctx.lineTo(left+5,rowY);ctx.closePath();ctx.fill();}
+      text(`${row.label} ${row.value.toFixed(1)} kg`,left+20,rowY+.5,{color:colors[row.key],font:`${row.shape==='ring'?'700':'600'} 9px -apple-system,BlinkMacSystemFont,sans-serif`});
     });
-    ctx.fillStyle=cssVar('--muted','#72757d');ctx.font='8px -apple-system,BlinkMacSystemFont,sans-serif';ctx.fillText('估算推荐范围，仅供趋势参考',left+10,top+97);ctx.restore();
+    text('估算推荐范围，仅供趋势参考',left+4,top+88,{color:cssVar('--muted','#72757d'),font:'8px -apple-system,BlinkMacSystemFont,sans-serif'});ctx.restore();
   }
   function drawCrosshair(frame,query){
     if(!frame||!query)return;const {ctx,pad,plotW,height,x,y}=frame,xx=x(query.gestation),yy=y(query.target),upperY=y(query.high),lowerY=y(query.low);

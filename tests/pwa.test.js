@@ -92,6 +92,32 @@ test('十字定位复用推荐函数并完整清理 Pointer Events 状态',()=>{
   assert.match(style,/touch-action:pan-y/);assert.match(style,/prefers-reduced-motion:reduce/);
 });
 
+test('触摸手势超过阈值后单向锁定查询或页面滚动',()=>{
+  const start=app.indexOf('const CHART_GESTURE_THRESHOLD');
+  const end=app.indexOf('let chartGesture',start);
+  const intent=Function(`${app.slice(start,end)};return chartGestureIntent;`)();
+  assert.equal(intent(5,2),'pending');assert.equal(intent(20,-10),'query');assert.equal(intent(-24,12),'query');
+  assert.equal(intent(8,20),'scroll');assert.equal(intent(-9,-22),'scroll');assert.equal(intent(12,11),'pending');
+  assert.match(app,/chartGesture\.mode='query'/);
+  assert.match(app,/resolvePendingChartGesture\(event\.clientX,event\.clientY\)==='query'&&event\.cancelable/);
+  assert.match(app,/chartGesture\.mode='scroll';PregnancyChart\.clearCrosshair\(\)/);
+  assert.match(app,/chartGesture\.mode==='query'&&event\.cancelable/);
+  assert.match(app,/chartGesture\.mode==='pending'&&touch\)resolvePendingChartGesture\(touch\.clientX,touch\.clientY\)/);
+  assert.match(app,/addEventListener\('touchmove',preventLockedChartScroll,\{passive:false\}\)/);
+  assert.match(app,/setPointerCapture\(event\.pointerId\);chartGesture\.captured=true/);
+  assert.doesNotMatch(style,/touch-action:none/);
+});
+
+test('推荐范围数值使用透明Canvas文字而非遮挡曲线的色块',()=>{
+  const start=chart.indexOf('function drawRangeInfo');
+  const end=chart.indexOf('function drawCrosshair',start);
+  const rangeInfo=chart.slice(start,end);
+  assert.match(rangeInfo,/strokeText\(value,x,y\)/);assert.match(rangeInfo,/fillText\(value,x,y\)/);
+  assert.doesNotMatch(rangeInfo,/roundedRect|panel-solid|range-upper-soft|range-middle-soft|range-lower-soft|shadowBlur|globalAlpha/);
+  assert.match(style,/--chart-label-outline:rgba\(255,255,255,\.92\)/);
+  assert.match(style,/--chart-label-outline:rgba\(0,0,0,\.84\)/);
+});
+
 test('新增记录只能由当前体重主动输入路径触发',()=>{
   assert.equal((app.match(/PregnancyStorage\.addRecord\(/g)||[]).length,1);
   assert.match(app,/if\(!weightDirty\)return/);

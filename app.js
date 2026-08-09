@@ -375,26 +375,62 @@
     clearTimeout(tooltipTimer);tooltipTimer=setTimeout(hideTooltip,2600);
   }
   function hideTooltip(){els.tooltip.hidden=true;}
-  let activeChartPointer=null,chartPointerStart=null;
+  const CHART_GESTURE_THRESHOLD=8,CHART_DIRECTION_RATIO=1.15;
+  function chartGestureIntent(deltaX,deltaY){
+    if(Math.hypot(deltaX,deltaY)<CHART_GESTURE_THRESHOLD)return 'pending';
+    if(Math.abs(deltaX)>Math.abs(deltaY)*CHART_DIRECTION_RATIO)return 'query';
+    if(Math.abs(deltaY)>Math.abs(deltaX)*CHART_DIRECTION_RATIO)return 'scroll';
+    return 'pending';
+  }
+  let chartGesture=null;
   function beginChartInteraction(event){
     if(event.pointerType==='mouse'&&event.button!==0)return;
+    hideTooltip();
+    if(event.pointerType!=='mouse'){
+      const provisional=Boolean(PregnancyChart.showCrosshair(event.clientX,event.clientY));
+      dismissChartGuide();chartGesture={pointerId:event.pointerId,pointerType:event.pointerType,startX:event.clientX,startY:event.clientY,mode:'pending',moved:false,captured:false,provisional};return;
+    }
     const query=PregnancyChart.showCrosshair(event.clientX,event.clientY);if(!query){showTooltip(event);return;}
-    hideTooltip();dismissChartGuide();activeChartPointer=event.pointerId;chartPointerStart={x:event.clientX,y:event.clientY,moved:false};
-    try{els.chartWrap.setPointerCapture(event.pointerId);}catch{}
+    dismissChartGuide();chartGesture={pointerId:event.pointerId,pointerType:'mouse',startX:event.clientX,startY:event.clientY,mode:'query',moved:false,captured:false};
+    try{els.chartWrap.setPointerCapture(event.pointerId);chartGesture.captured=true;}catch{}
+  }
+  function resolvePendingChartGesture(clientX,clientY){
+    if(!chartGesture||chartGesture.mode!=='pending')return chartGesture?.mode;
+    const deltaX=clientX-chartGesture.startX,deltaY=clientY-chartGesture.startY,intent=chartGestureIntent(deltaX,deltaY);
+    if(intent==='pending')return intent;
+    chartGesture.moved=true;
+    if(intent==='scroll'){chartGesture.mode='scroll';PregnancyChart.clearCrosshair();return 'scroll';}
+    const query=PregnancyChart.showCrosshair(clientX,chartGesture.startY);
+    if(!query){chartGesture.mode='scroll';return 'scroll';}
+    chartGesture.mode='query';
+    try{els.chartWrap.setPointerCapture(chartGesture.pointerId);chartGesture.captured=true;}catch{}
+    return 'query';
   }
   function moveChartInteraction(event){
-    if(activeChartPointer===event.pointerId&&chartPointerStart){
-      if(Math.hypot(event.clientX-chartPointerStart.x,event.clientY-chartPointerStart.y)>6)chartPointerStart.moved=true;
-      PregnancyChart.showCrosshair(event.clientX,event.clientY);return;
+    if(chartGesture?.pointerId===event.pointerId){
+      const deltaX=event.clientX-chartGesture.startX,deltaY=event.clientY-chartGesture.startY;
+      if(chartGesture.mode==='pending'){
+        if(resolvePendingChartGesture(event.clientX,event.clientY)==='query'&&event.cancelable)event.preventDefault();
+        return;
+      }
+      if(chartGesture.mode==='query'){
+        chartGesture.moved=chartGesture.moved||Math.abs(deltaX)>6;event.preventDefault();PregnancyChart.showCrosshair(event.clientX,chartGesture.startY);
+      }
+      return;
     }
     if(event.pointerType==='mouse'&&!event.buttons){hideTooltip();if(!PregnancyChart.showCrosshair(event.clientX,event.clientY))showTooltip(event);}
   }
   function finishChartInteraction(event,{showPoint=false}={}){
-    if(activeChartPointer!==null&&event.pointerId!==undefined&&event.pointerId!==activeChartPointer)return;
-    const shouldShowPoint=showPoint&&chartPointerStart&&!chartPointerStart.moved;
-    const pointerId=activeChartPointer;activeChartPointer=null;chartPointerStart=null;PregnancyChart.clearCrosshair();
-    if(pointerId!==null)try{if(els.chartWrap.hasPointerCapture(pointerId))els.chartWrap.releasePointerCapture(pointerId);}catch{}
+    if(chartGesture&&event.pointerId!==undefined&&event.pointerId!==chartGesture.pointerId)return;
+    const shouldShowPoint=showPoint&&chartGesture&&chartGesture.mode!=='scroll'&&!chartGesture.moved;
+    const pointerId=chartGesture?.pointerId,captured=chartGesture?.captured;chartGesture=null;PregnancyChart.clearCrosshair();
+    if(captured&&pointerId!==undefined)try{if(els.chartWrap.hasPointerCapture(pointerId))els.chartWrap.releasePointerCapture(pointerId);}catch{}
     if(shouldShowPoint)showTooltip(event);
+  }
+  function preventLockedChartScroll(event){
+    if(!chartGesture||chartGesture.pointerType==='mouse')return;
+    const touch=event.touches?.[0];if(chartGesture.mode==='pending'&&touch)resolvePendingChartGesture(touch.clientX,touch.clientY);
+    if(chartGesture.mode==='query'&&event.cancelable)event.preventDefault();
   }
   function openRecord(id){
     const record=state.records.find(item=>item.id===id);if(!record)return;
@@ -429,8 +465,10 @@
   els.chartWrap.addEventListener('pointermove',moveChartInteraction);
   els.chartWrap.addEventListener('pointerup',event=>finishChartInteraction(event,{showPoint:true}));
   els.chartWrap.addEventListener('pointercancel',event=>finishChartInteraction(event));
-  els.chartWrap.addEventListener('pointerleave',event=>{hideTooltip();finishChartInteraction(event);});
+  els.chartWrap.addEventListener('pointerleave',event=>{if(chartGesture?.pointerType!=='mouse'&&chartGesture?.mode==='query')return;hideTooltip();finishChartInteraction(event);});
   els.chartWrap.addEventListener('lostpointercapture',event=>finishChartInteraction(event));
+  els.chartWrap.addEventListener('touchmove',preventLockedChartScroll,{passive:false});
+  els.chartWrap.addEventListener('touchcancel',event=>finishChartInteraction(event));
   window.addEventListener('blur',()=>{hideTooltip();finishChartInteraction({});});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){hideTooltip();finishChartInteraction({});}});
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',()=>requestAnimationFrame(render));

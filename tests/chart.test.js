@@ -8,7 +8,7 @@ global.devicePixelRatio=1;
 const operations=[];
 const gradient={addColorStop(){}};
 const context={
-  setTransform(){},clearRect(){},save(){},restore(){},beginPath(){},closePath(){},stroke(){},fill(){},setLineDash(){},arc(){},arcTo(){},putImageData(){},
+  setTransform(){},clearRect(){},save(){},restore(){},beginPath(){},closePath(){},stroke(){},fill(){},setLineDash(){},arc(){},arcTo(){},putImageData(){},strokeText(){},
   fillText(text,x,y){operations.push(['fillText',String(text),x,y]);},
   moveTo(x,y){operations.push(['moveTo',x,y]);},lineTo(x,y){operations.push(['lineTo',x,y]);},
   createLinearGradient(){return gradient;},measureText(text){return {width:String(text).length*6};},getImageData(){return {mock:true};}
