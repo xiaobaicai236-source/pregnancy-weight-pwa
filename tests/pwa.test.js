@@ -20,7 +20,7 @@ test('所有页面静态资源引用统一为 v1.8.0',()=>{
 test('Service Worker 预缓存 URL 与页面请求完全一致',()=>{
   const references=[...html.matchAll(/(?:href|src)="((?:style\.css|data\.js|calculator\.js|storage\.js|chart\.js|app\.js|manifest\.json|assets\/apple-touch-icon\.png)\?v=1\.8\.0)"/g)].map(match=>`./${match[1]}`);
   references.forEach(reference=>assert.ok(worker.includes(`'${reference}'`),`missing ${reference}`));
-  assert.match(worker,/const CACHE='pregnancy-weight-v1\.8\.0'/);
+  assert.match(worker,/const CACHE='pregnancy-weight-v1\.8\.0-doctor-targets-1'/);
   assert.match(worker,/keys\.filter\(key=>key!==CACHE\)/);
 });
 
@@ -79,10 +79,17 @@ test('页面不包含重复的 Canvas 外部横坐标',()=>{
   assert.doesNotMatch(html,/class="chart-footer"/);assert.match(app,/按住图表左右滑动/);assert.match(app,/移动鼠标查看各孕周/);
 });
 
+test('图表横坐标按宽度抽稀、仅显示数字并单独标注周单位',()=>{
+  assert.match(chart,/function xAxisTicks\(plotW\)/);
+  assert.match(chart,/xAxisTicks\(plotW\)\.forEach\(week=>ctx\.fillText\(String\(week\)/);
+  assert.match(chart,/ctx\.fillText\('单位：周'/);
+  assert.doesNotMatch(chart,/ctx\.fillText\(`\$\{week\}周`,x\(week\),height-pad\.b/);
+});
+
 test('十字定位复用推荐函数并完整清理 Pointer Events 状态',()=>{
-  assert.match(chart,/frame\.recFn\(gestation\)/);assert.match(chart,/Math\.round\([\s\S]*\*7\)/);
-  assert.match(chart,/推荐中位数/);assert.doesNotMatch(chart,/标准体重/);
-  assert.match(chart,/推荐上限/);assert.match(chart,/推荐下限/);assert.match(chart,/估算推荐范围，仅供趋势参考/);
+  assert.match(chart,/frame\.doctorRecFn\(gestation\)/);assert.match(chart,/frame\.generalRecFn\(gestation\)/);assert.match(chart,/Math\.round\([\s\S]*\*7\)/);
+  assert.match(chart,/中位数/);assert.doesNotMatch(chart,/标准体重/);
+  assert.match(chart,/\$\{prefix\}上限/);assert.match(chart,/\$\{prefix\}下限/);assert.match(chart,/通用推荐范围，仅供趋势参考/);
   assert.match(chart,/low>target\|\|target>high/);
   ['--range-upper','--range-middle','--range-lower','--range-upper-soft','--range-middle-soft','--range-lower-soft'].forEach(variable=>assert.ok(style.includes(variable)));
   assert.doesNotMatch(chart,/正常上限|危险上限|最低安全体重|最高安全体重/);
@@ -101,8 +108,9 @@ test('触摸手势超过阈值后单向锁定查询或页面滚动',()=>{
   assert.match(app,/chartGesture\.mode='query'/);
   assert.match(app,/resolvePendingChartGesture\(event\.clientX,event\.clientY\)==='query'&&event\.cancelable/);
   assert.match(app,/chartGesture\.mode='scroll';PregnancyChart\.clearCrosshair\(\)/);
-  assert.match(app,/chartGesture\.mode==='query'&&event\.cancelable/);
+  assert.match(app,/chartGesture\.mode==='query'&&touch/);
   assert.match(app,/chartGesture\.mode==='pending'&&touch\)resolvePendingChartGesture\(touch\.clientX,touch\.clientY\)/);
+  assert.match(app,/PregnancyChart\.showCrosshair\(touch\.clientX,chartGesture\.startY\)/);
   assert.match(app,/addEventListener\('touchmove',preventLockedChartScroll,\{passive:false\}\)/);
   assert.match(app,/setPointerCapture\(event\.pointerId\);chartGesture\.captured=true/);
   assert.doesNotMatch(style,/touch-action:none/);
@@ -151,6 +159,16 @@ test('默认计算完整采用 WS/T 801—2022 中国标准',()=>{
   assert.match(html,/使用前必读 · 关于与说明/);assert.match(html,/class="required-badge">必读/);
   assert.match(html,/WS\/T 801—2022/);assert.match(readme,/2022年10月1日/);
   assert.match(html,/complicationInput/);assert.match(html,/doctorTargetInput/);
+});
+
+test('并发症提示与医生个体化目标具有完整本地功能',()=>{
+  ['doctorPlanSection','doctorPlanEnabledInput','doctorWeekInput','doctorDayInput','doctorLowerInput','doctorMiddleInput','doctorUpperInput','saveDoctorTargetButton','doctorTargetList','clearDoctorTargetsButton','legendDoctor','medicalNotice','generalReferenceSummary'].forEach(id=>assert.ok(html.includes(`id="${id}"`),id));
+  assert.match(html,/医生目标数据由用户根据医生建议录入/);assert.match(html,/参数不足时不会自动生成曲线/);
+  assert.match(app,/PregnancyStorage\.upsertDoctorTarget/);assert.match(app,/PregnancyStorage\.deleteDoctorTarget/);assert.match(app,/PregnancyStorage\.clearDoctorTargets/);assert.match(app,/confirm\('确定清空全部医生目标吗/);
+  assert.match(app,/当前存在妊娠并发症，通用曲线仅供趋势参考/);assert.match(app,/当前孕周暂无医生目标数据/);
+  assert.match(calculator,/function doctorTargetAtGestation/);assert.match(calculator,/function doctorCurve/);assert.match(calculator,/middleSource:provided\?'provided':'range-midpoint'/);
+  assert.match(chart,/generalMuted/);assert.match(chart,/doctorCurve/);assert.match(chart,/医生目标中位数/);assert.match(chart,/范围中点/);assert.match(chart,/该孕周暂无医生目标数据/);
+  assert.match(style,/--doctor:#7551b9/);assert.match(style,/--doctor:#bf9cff/);assert.match(style,/\.legend-doctor-range/);
 });
 
 test('浅色模式主要文字和按钮达到可读对比度',()=>{

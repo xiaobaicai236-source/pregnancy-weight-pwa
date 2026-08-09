@@ -9,6 +9,9 @@ window.PregnancyStorage = (() => {
     pluralityConfirmed:false,
     hasPregnancyComplication:false,
     hasDoctorTarget:false,
+    doctorPlanEnabled:true,
+    doctorPlanVersion:1,
+    doctorTargets:[],
     week:D.defaultWeek,
     day:D.defaultDay,
     currentWeight:'',
@@ -26,6 +29,7 @@ window.PregnancyStorage = (() => {
     return Number.isInteger(number)&&number>=min&&number<=max?number:null;
   }
   function expectedId(week,day){ return `${week*7+day}d`; }
+  function expectedDoctorTargetId(week,day){ return `doctor-${week*7+day}d`; }
   function deriveWeekDay(gestation){
     const number=Number(gestation);
     if(!Number.isFinite(number)) return null;
@@ -62,6 +66,26 @@ window.PregnancyStorage = (() => {
     return {valid:true,record:{id,week,day,gestation,weight,updatedAt}};
   }
 
+  function normalizeDoctorTarget(raw,{allowMissingId=true}={}){
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return {valid:false,reason:'format'};
+    const week=integer(raw.week,D.minWeek,D.maxWeek),day=integer(raw.day,0,D.maxDay);
+    if(week===null||day===null)return {valid:false,reason:'gestation'};
+    const gestation=week+day/7;
+    if(raw.gestation!==undefined&&raw.gestation!==null&&raw.gestation!==''){
+      const supplied=Number(raw.gestation);if(!Number.isFinite(supplied)||Math.abs(supplied-gestation)>0.001)return {valid:false,reason:'gestation-mismatch'};
+    }
+    const lower=optionalNumber(raw.lower,C.minWeightKg,C.maxWeightKg),upper=optionalNumber(raw.upper,C.minWeightKg,C.maxWeightKg);
+    if(lower===null||upper===null||lower>upper)return {valid:false,reason:'range'};
+    const hasMiddle=raw.middle!==null&&raw.middle!==undefined&&raw.middle!=='';
+    const middle=hasMiddle?optionalNumber(raw.middle,C.minWeightKg,C.maxWeightKg):null;
+    if(hasMiddle&&(middle===null||middle<lower||middle>upper))return {valid:false,reason:'middle'};
+    const generatedId=expectedDoctorTargetId(week,day);let id=raw.id;
+    if(id===undefined||id===null||id===''){if(!allowMissingId)return {valid:false,reason:'id'};id=generatedId;}
+    if(typeof id!=='string'||id!==generatedId)return {valid:false,reason:'id'};
+    const updatedAt=Number.isFinite(Number(raw.updatedAt))&&Number(raw.updatedAt)>=0?Number(raw.updatedAt):0;
+    return {valid:true,target:{id,week,day,gestation,lower,middle,upper,updatedAt}};
+  }
+
   function normalizeProfile(raw={}){
     const hasPreWeight=raw.preWeight!==null&&raw.preWeight!==undefined&&raw.preWeight!=='';
     const hasHeight=raw.heightCm!==null&&raw.heightCm!==undefined&&raw.heightCm!=='';
@@ -70,6 +94,7 @@ window.PregnancyStorage = (() => {
     const pluralityValid=raw.plurality==='singleton'||raw.plurality==='twins';
     const complicationValid=raw.hasPregnancyComplication==null||typeof raw.hasPregnancyComplication==='boolean';
     const doctorTargetValid=raw.hasDoctorTarget==null||typeof raw.hasDoctorTarget==='boolean';
+    const doctorPlanEnabledValid=raw.doctorPlanEnabled==null||typeof raw.doctorPlanEnabled==='boolean';
     return {
       preWeight,
       heightCm,
@@ -77,10 +102,11 @@ window.PregnancyStorage = (() => {
       pluralityConfirmed:pluralityValid ? raw.pluralityConfirmed!==false : false,
       hasPregnancyComplication:raw.hasPregnancyComplication===true,
       hasDoctorTarget:raw.hasDoctorTarget===true,
+      doctorPlanEnabled:raw.doctorPlanEnabled!==false,
       invalidPreWeight:hasPreWeight&&preWeight===null,
       invalidHeight:hasHeight&&heightCm===null,
       invalidPlurality:raw.plurality!==undefined&&!pluralityValid,
-      invalidMedicalFlags:!complicationValid||!doctorTargetValid
+      invalidMedicalFlags:!complicationValid||!doctorTargetValid||!doctorPlanEnabledValid
     };
   }
 
@@ -100,6 +126,12 @@ window.PregnancyStorage = (() => {
     });
     const records=[...map.values()].sort((a,b)=>a.gestation-b.gestation).slice(-C.maxStoredRecords);
     const selectedRecord=records.find(record=>record.id===expectedId(week,day));
+    const doctorMap=new Map();
+    (Array.isArray(raw.doctorTargets)?raw.doctorTargets:[]).forEach(item=>{
+      const normalized=normalizeDoctorTarget(item);if(!normalized.valid)return;
+      const old=doctorMap.get(normalized.target.id);if(!old||normalized.target.updatedAt>=old.updatedAt)doctorMap.set(normalized.target.id,normalized.target);
+    });
+    const doctorTargets=[...doctorMap.values()].sort((a,b)=>a.gestation-b.gestation).slice(0,C.maxDoctorTargets);
     return {
       preWeight:profile.preWeight,
       heightCm:profile.heightCm,
@@ -107,6 +139,9 @@ window.PregnancyStorage = (() => {
       pluralityConfirmed:profile.pluralityConfirmed,
       hasPregnancyComplication:profile.hasPregnancyComplication,
       hasDoctorTarget:profile.hasDoctorTarget,
+      doctorPlanEnabled:profile.doctorPlanEnabled,
+      doctorPlanVersion:1,
+      doctorTargets,
       week,day,
       currentWeight:selectedRecord?.weight??'',
       records,
@@ -124,6 +159,7 @@ window.PregnancyStorage = (() => {
       preWeight:clean.preWeight,heightCm:clean.heightCm,plurality:clean.plurality,
       pluralityConfirmed:clean.pluralityConfirmed,week:clean.week,day:clean.day,
       hasPregnancyComplication:clean.hasPregnancyComplication,hasDoctorTarget:clean.hasDoctorTarget,
+      doctorPlanEnabled:clean.doctorPlanEnabled,doctorPlanVersion:clean.doctorPlanVersion,doctorTargets:clean.doctorTargets,
       currentWeight:clean.currentWeight,records:clean.records
     };
     localStorage.setItem(KEY,JSON.stringify(persisted));
@@ -157,18 +193,29 @@ window.PregnancyStorage = (() => {
     return {...state,records,currentWeight:selected?.weight??''};
   }
   function clearRecords(state){ return {...state,currentWeight:'',records:[]}; }
+  function upsertDoctorTarget(state,target){
+    const normalized=normalizeDoctorTarget(target);if(!normalized.valid)return {state,valid:false,reason:normalized.reason,replaced:false};
+    const replaced=(state.doctorTargets||[]).some(item=>item.id===normalized.target.id);
+    const nextTarget={...normalized.target,updatedAt:Date.now()};
+    const doctorTargets=(state.doctorTargets||[]).filter(item=>item.id!==nextTarget.id);doctorTargets.push(nextTarget);doctorTargets.sort((a,b)=>a.gestation-b.gestation);
+    return {state:{...state,doctorTargets:doctorTargets.slice(0,C.maxDoctorTargets)},valid:true,target:nextTarget,replaced};
+  }
+  function deleteDoctorTarget(state,id){return {...state,doctorTargets:(state.doctorTargets||[]).filter(target=>target.id!==id)};}
+  function clearDoctorTargets(state){return {...state,doctorTargets:[]};}
   function replaceData(statePatch){ const next=save(statePatch); return next; }
 
   function makeBackupPayload(state){
     const clean=sanitizeState(state);
     const p=PregnancyCalculator.profile(clean.preWeight,clean.heightCm,clean.plurality);
     return {
-      schema:'pregnancy-weight-pwa-backup',version:2,appVersion:D.appVersion,
+      schema:'pregnancy-weight-pwa-backup',version:3,appVersion:D.appVersion,
       exportedAt:new Date().toISOString(),
       data:{
         preWeight:clean.preWeight,heightCm:clean.heightCm,plurality:clean.plurality,
         pluralityConfirmed:clean.pluralityConfirmed,bmi:p.bmi===null?null:Number(p.bmi.toFixed(2)),
         hasPregnancyComplication:clean.hasPregnancyComplication,hasDoctorTarget:clean.hasDoctorTarget,
+        doctorPlanEnabled:clean.doctorPlanEnabled,doctorPlanVersion:clean.doctorPlanVersion,
+        doctorTargets:clean.doctorTargets.map(target=>({...target})),
         week:clean.week,day:clean.day,records:clean.records.map(record=>({...record}))
       }
     };
@@ -176,7 +223,7 @@ window.PregnancyStorage = (() => {
 
   function validateBackup(payload){
     if(!payload||typeof payload!=='object'||Array.isArray(payload)||payload.schema!=='pregnancy-weight-pwa-backup') throw new Error('不是有效的孕期体重备份文件');
-    if(payload.version!==undefined && ![1,2].includes(Number(payload.version))) throw new Error('备份版本不受支持');
+    if(payload.version!==undefined && ![1,2,3].includes(Number(payload.version))) throw new Error('备份版本不受支持');
     const raw=payload.data;
     if(!raw||typeof raw!=='object'||Array.isArray(raw)) throw new Error('备份缺少数据');
     if(!Array.isArray(raw.records)||raw.records.length>C.maxImportRecords) throw new Error('历史记录格式或数量无效');
@@ -185,6 +232,8 @@ window.PregnancyStorage = (() => {
     if(profile.invalidHeight) throw new Error('身高超出允许范围');
     if(profile.invalidPlurality) throw new Error('胎数取值无效');
     if(profile.invalidMedicalFlags) throw new Error('个体化情况取值无效');
+    if(raw.doctorPlanVersion!==undefined&&Number(raw.doctorPlanVersion)!==1)throw new Error('医生目标数据版本不受支持');
+    if(raw.doctorTargets!==undefined&&(!Array.isArray(raw.doctorTargets)||raw.doctorTargets.length>C.maxDoctorTargets))throw new Error('医生目标格式或数量无效');
     const week=integer(raw.week,D.minWeek,D.maxWeek);
     const day=integer(raw.day,0,D.maxDay);
     if(week===null||day===null) throw new Error('孕周必须为1–40周、0–6天');
@@ -203,6 +252,14 @@ window.PregnancyStorage = (() => {
     records.push(...seen.values()); records.sort((a,b)=>a.gestation-b.gestation);
     if(raw.records.length>0&&records.length===0) throw new Error('备份中没有可导入的有效记录');
     const legacyPlurality=raw.plurality===undefined;
+    const doctorSeen=new Map();let doctorInvalid=0,doctorSkipped=0;
+    (Array.isArray(raw.doctorTargets)?raw.doctorTargets:[]).forEach(item=>{
+      const normalized=normalizeDoctorTarget(item);if(!normalized.valid){doctorInvalid+=1;return;}
+      const old=doctorSeen.get(normalized.target.id);
+      if(old){doctorSkipped+=1;if(normalized.target.updatedAt>=old.updatedAt)doctorSeen.set(normalized.target.id,normalized.target);}
+      else doctorSeen.set(normalized.target.id,normalized.target);
+    });
+    const doctorTargets=[...doctorSeen.values()].sort((a,b)=>a.gestation-b.gestation);
     return {
       data:{
         preWeight:profile.preWeight,heightCm:profile.heightCm,
@@ -210,9 +267,12 @@ window.PregnancyStorage = (() => {
         pluralityConfirmed:legacyPlurality?false:profile.pluralityConfirmed,
         hasPregnancyComplication:profile.hasPregnancyComplication,
         hasDoctorTarget:profile.hasDoctorTarget,
+        doctorPlanEnabled:profile.doctorPlanEnabled,
+        doctorPlanVersion:1,
+        doctorTargets,
         week,day,records
       },
-      stats:{invalid,skipped},
+      stats:{invalid,skipped,doctorInvalid,doctorSkipped},
       warnings:[
         ...(raw.heightCm===undefined?['旧版备份未包含身高，请补充设置']:[]),
         ...(legacyPlurality?['旧版备份已暂按单胎处理，请确认胎数']:[])
@@ -234,5 +294,11 @@ window.PregnancyStorage = (() => {
     return {records:all.slice(-C.maxStoredRecords),stats:{merged,skipped:skipped+overflow}};
   }
 
-  return {load,save,addRecord,updateRecord,deleteRecord,clearRecords,replaceData,sanitizeState,normalizeRecord,makeBackupPayload,validateBackup,mergeRecords,expectedId};
+  function mergeDoctorTargets(current,incoming){
+    const map=new Map((current||[]).map(target=>[target.id,target]));let merged=0,skipped=0;
+    (incoming||[]).forEach(target=>{const old=map.get(target.id);if(!old||target.updatedAt>old.updatedAt){map.set(target.id,target);merged+=1;}else skipped+=1;});
+    return {targets:[...map.values()].sort((a,b)=>a.gestation-b.gestation).slice(0,C.maxDoctorTargets),stats:{merged,skipped}};
+  }
+
+  return {load,save,addRecord,updateRecord,deleteRecord,clearRecords,upsertDoctorTarget,deleteDoctorTarget,clearDoctorTargets,replaceData,sanitizeState,normalizeRecord,normalizeDoctorTarget,makeBackupPayload,validateBackup,mergeRecords,mergeDoctorTargets,expectedId,expectedDoctorTargetId};
 })();

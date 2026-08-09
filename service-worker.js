@@ -1,4 +1,4 @@
-const CACHE='pregnancy-weight-v1.8.0';
+const CACHE='pregnancy-weight-v1.8.0-doctor-targets-1';
 const SHELL=[
   './',
   './index.html',

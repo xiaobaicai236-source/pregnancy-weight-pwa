@@ -13,10 +13,11 @@ const context={
   moveTo(x,y){operations.push(['moveTo',x,y]);},lineTo(x,y){operations.push(['lineTo',x,y]);},
   createLinearGradient(){return gradient;},measureText(text){return {width:String(text).length*6};},getImageData(){return {mock:true};}
 };
+let canvasWidth=654;
 const canvas={
   width:0,height:0,
   getContext(){return context;},
-  getBoundingClientRect(){return {left:0,top:0,width:654,height:320};}
+  getBoundingClientRect(){return {left:0,top:0,width:canvasWidth,height:320};}
 };
 
 require('../chart.js');
@@ -54,7 +55,7 @@ const drawnText=operations.filter(operation=>operation[0]==='fillText').map(oper
 assert.ok(drawnText.some(text=>text.startsWith('推荐上限 ')));
 assert.ok(drawnText.some(text=>text.startsWith('推荐中位数 ')));
 assert.ok(drawnText.some(text=>text.startsWith('推荐下限 ')));
-assert.ok(drawnText.includes('估算推荐范围，仅供趋势参考'));
+assert.ok(drawnText.includes('通用推荐范围，仅供趋势参考'));
 
 assert.equal(PregnancyChart.hasCrosshair(),true);
 PregnancyChart.clearCrosshair();assert.equal(PregnancyChart.hasCrosshair(),false);
@@ -65,5 +66,34 @@ assert.equal(PregnancyChart.showCrosshair(clientX(25),120),null,'没有可用推
 
 PregnancyChart.drawChart(canvas,{records:[],currentWeek:25,minWeek,maxWeek,recommendationAtWeek:()=>({available:true,low:62,target:61,high:63})});
 assert.equal(PregnancyChart.showCrosshair(clientX(25),120),null,'推荐范围顺序无效时不显示虚假十字定位');
+
+operations.length=0;canvasWidth=320;
+PregnancyChart.drawChart(canvas,{records:[],currentWeek:25,minWeek,maxWeek,recommendationAtWeek});
+const mobileTicks=operations.filter(operation=>operation[0]==='fillText'&&operation[3]===284).map(operation=>operation[1]);
+assert.deepEqual(mobileTicks,['1','7','13','19','25','31','40'],'小屏横坐标应动态抽稀并仅显示数字');
+assert.ok(operations.some(operation=>operation[0]==='fillText'&&operation[1]==='单位：周'));
+
+operations.length=0;canvasWidth=654;
+const doctorTargets=[
+  {id:'doctor-168d',week:24,day:0,gestation:24,lower:55,middle:56,upper:57},
+  {id:'doctor-196d',week:28,day:0,gestation:28,lower:56,middle:57.2,upper:58.5}
+];
+const doctorAtWeek=gestation=>gestation<24||gestation>28?{available:false,reason:'outside'}:{available:true,gestation,low:55+(gestation-24)/4,target:56+(gestation-24)*.3,high:57+(gestation-24)*.375,middleSource:'provided'};
+const doctorCurve=Array.from({length:29},(_,index)=>doctorAtWeek(24+index/7));
+PregnancyChart.drawChart(canvas,{records:[{id:'182d',week:26,day:0,gestation:26,weight:57}],currentWeek:26,minWeek,maxWeek,generalRecommendationAtWeek:recommendationAtWeek,generalMuted:true,doctorEnabled:true,doctorTargets,doctorCurve,doctorRecommendationAtWeek:doctorAtWeek});
+const doctorQuery=PregnancyChart.showCrosshair(clientX(26),120);
+assert.equal(doctorQuery.kind,'doctor');assert.equal(doctorQuery.target,56.6);assert.equal(doctorQuery.actualWeight,57);
+let doctorText=operations.filter(operation=>operation[0]==='fillText').map(operation=>operation[1]);
+assert.ok(doctorText.some(text=>text.startsWith('医生目标上限 ')));assert.ok(doctorText.some(text=>text.startsWith('医生目标中位数 ')));assert.ok(doctorText.includes('当前实际体重 57.0 kg'));
+
+operations.length=0;
+const fallbackQuery=PregnancyChart.showCrosshair(clientX(20),120);
+assert.equal(fallbackQuery.kind,'general');assert.equal(fallbackQuery.doctorUnavailable,true);
+doctorText=operations.filter(operation=>operation[0]==='fillText').map(operation=>operation[1]);assert.ok(doctorText.includes('该孕周暂无医生目标数据'));assert.ok(doctorText.some(text=>text.startsWith('通用参考上限 ')));
+
+operations.length=0;
+PregnancyChart.drawChart(canvas,{records:[],currentWeek:20,minWeek,maxWeek,generalRecommendationAtWeek:null,doctorEnabled:true,doctorTargets,doctorCurve,doctorRecommendationAtWeek:doctorAtWeek});
+const noReferenceQuery=PregnancyChart.showCrosshair(clientX(20),120);assert.equal(noReferenceQuery.noReference,true);
+assert.ok(operations.some(operation=>operation[0]==='fillText'&&operation[1]==='该孕周暂无医生目标数据'));
 
 console.log('✓ 十字定位上下限/中位数、1/14/25/40周、按天吸附、推荐函数复用与清理状态通过');

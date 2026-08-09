@@ -15,6 +15,7 @@ window.PregnancyData = Object.freeze({
     minHeightCm: 120,
     maxHeightCm: 220,
     maxStoredRecords: 80,
+    maxDoctorTargets: 280,
     maxImportRecords: 2000,
     maxBackupBytes: 2 * 1024 * 1024,
     minimumPaceSpanDays: 14,

@@ -44,6 +44,7 @@ window.PregnancyCalculator = (() => {
     };
     result.referenceReason=referenceReason(result);
     result.referenceEligible=result.referenceReason===null;
+    result.needsIndividualEvaluation=result.hasPregnancyComplication||result.hasDoctorTarget;
     return result;
   }
 
@@ -53,8 +54,6 @@ window.PregnancyCalculator = (() => {
     if(p.plurality==='twins')return 'twins';
     if(p.heightCm<140)return 'height-limit';
     if(p.preWeight>125)return 'weight-limit';
-    if(p.hasPregnancyComplication)return 'complication';
-    if(p.hasDoctorTarget)return 'doctor-target';
     return null;
   }
 
@@ -128,12 +127,49 @@ window.PregnancyCalculator = (() => {
     if(spanDays<D.constraints.minimumPaceSpanDays) return {available:false,reason:'short',count:inWindow.length,spanDays};
     const weekly=(latest.weight-start.weight)/spanWeeks;
     const p=profileInput?.bmiCategory ? profileInput : profile(profileInput?.preWeight,profileInput?.heightCm,profileInput?.plurality,profileInput);
-    const weeklyReference=p.referenceEligible && latest.gestation>D.references.singleton.firstTrimesterEndWeek
+    const weeklyReference=p.referenceEligible && !p.needsIndividualEvaluation && latest.gestation>D.references.singleton.firstTrimesterEndWeek
       ? D.references.singleton.byBmi[p.bmiCategory.id].weeklyGainKg
       : null;
     const status=weeklyReference ? (weekly<weeklyReference[0]?'偏慢':weekly>weeklyReference[1]?'偏快':'参考范围内') : '仅供观察';
     return {available:true,weekly,spanDays,count:inWindow.length,status,weeklyReference,start,latest};
   }
 
-  return {gestationalWeek,bmi,bmiCategory,profile,totalGainReference,recommendation,recommendationAtGestation,curve,recentPace,round1};
+  function doctorTargetAtGestation(targets,gestationInput){
+    const gestation=Number(gestationInput);
+    if(!Number.isFinite(gestation))return {available:false,reason:'gestation',gestation};
+    const points=(Array.isArray(targets)?targets:[]).filter(point=>
+      Number.isFinite(Number(point.gestation))&&Number.isFinite(Number(point.lower))&&Number.isFinite(Number(point.upper))&&
+      Number(point.lower)<=Number(point.upper)&&(point.middle===null||point.middle===undefined||
+        (Number.isFinite(Number(point.middle))&&Number(point.middle)>=Number(point.lower)&&Number(point.middle)<=Number(point.upper)))
+    ).map(point=>({...point,gestation:Number(point.gestation),lower:Number(point.lower),middle:point.middle===null||point.middle===undefined?null:Number(point.middle),upper:Number(point.upper)}))
+      .sort((a,b)=>a.gestation-b.gestation);
+    if(!points.length)return {available:false,reason:'targets',gestation};
+    const exact=points.find(point=>Math.abs(point.gestation-gestation)<1e-6);
+    if(exact){
+      const provided=exact.middle!==null;
+      return {available:true,gestation,low:exact.lower,target:provided?exact.middle:(exact.lower+exact.upper)/2,high:exact.upper,middleSource:provided?'provided':'range-midpoint',singlePoint:points.length===1};
+    }
+    if(points.length<2||gestation<points[0].gestation||gestation>points.at(-1).gestation)return {available:false,reason:'outside',gestation};
+    let left=null,right=null;
+    for(let index=1;index<points.length;index++)if(gestation>points[index-1].gestation&&gestation<points[index].gestation){left=points[index-1];right=points[index];break;}
+    if(!left||!right)return {available:false,reason:'outside',gestation};
+    const progress=(gestation-left.gestation)/(right.gestation-left.gestation);
+    const interpolate=(start,end)=>start+(end-start)*progress;
+    const low=interpolate(left.lower,right.lower),high=interpolate(left.upper,right.upper);
+    const provided=left.middle!==null&&right.middle!==null;
+    const target=provided?interpolate(left.middle,right.middle):(low+high)/2;
+    return {available:true,gestation,low:round1(low),target:round1(target),high:round1(high),middleSource:provided?'provided':'range-midpoint',singlePoint:false};
+  }
+
+  function doctorCurve(targets,step=1/7){
+    const points=(Array.isArray(targets)?targets:[]).slice().sort((a,b)=>Number(a.gestation)-Number(b.gestation));
+    if(!points.length)return [];
+    if(points.length===1){const result=doctorTargetAtGestation(points,Number(points[0].gestation));return result.available?[result]:[];}
+    const out=[],start=Number(points[0].gestation),end=Number(points.at(-1).gestation);
+    for(let gestation=start;gestation<=end+1e-7;gestation+=step){const result=doctorTargetAtGestation(points,gestation);if(result.available)out.push(result);}
+    const last=doctorTargetAtGestation(points,end);if(last.available&&Math.abs((out.at(-1)?.gestation??-1)-end)>1e-6)out.push(last);
+    return out;
+  }
+
+  return {gestationalWeek,bmi,bmiCategory,profile,totalGainReference,recommendation,recommendationAtGestation,curve,recentPace,doctorTargetAtGestation,doctorCurve,round1};
 })();

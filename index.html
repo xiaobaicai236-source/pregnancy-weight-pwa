@@ -71,6 +71,9 @@
       </article>
     </section>
 
+    <p class="medical-notice" id="medicalNotice" data-tone="attention" hidden></p>
+    <p class="general-reference-summary" id="generalReferenceSummary" hidden></p>
+
     <section class="insight-grid reveal reveal-4" aria-live="polite">
       <article class="insight-card liquid-card">
         <span>孕期累计增重</span>
@@ -110,8 +113,9 @@
         </div>
         <div class="legend" aria-label="图例">
           <span><i class="legend-dot"></i>我的体重</span>
-          <span id="legendRecommendation"><i class="legend-line"></i>推荐</span>
-          <span id="legendRange"><i class="legend-band"></i>参考范围</span>
+          <span id="legendDoctor" hidden><i class="legend-doctor-range"></i>医生个体化目标</span>
+          <span id="legendRecommendation"><i class="legend-line"></i>通用推荐参考</span>
+          <span id="legendRange"><i class="legend-band"></i>通用参考范围</span>
         </div>
       </div>
       <div class="chart-wrap" id="chartWrap">
@@ -146,7 +150,7 @@
       <div class="backup-copy">
         <span>数据备份</span>
         <strong>导出 / 恢复体重记录</strong>
-        <small>备份包含孕前设置、当前孕周和历史记录。文件只保存在你的设备上。</small>
+        <small>备份包含孕前设置、个体化选项、医生目标点、当前孕周和历史记录。文件只保存在你的设备上。</small>
       </div>
       <div class="backup-actions">
         <button type="button" class="backup-button primary" id="exportBackupButton">导出备份</button>
@@ -163,7 +167,7 @@
         <p><strong>适用范围：</strong>当前标准适用于我国成年女性单胎自然妊娠。双胎、妊娠期糖尿病、其他妊娠并发症及医生已制定个体目标者应遵医嘱；身高低于 140 cm 或孕前体重超过 125 kg 者需个体化评价。</p>
         <p><strong>主要依据：</strong><a href="https://www.nhc.gov.cn/wjw/c100311/202208/deb61e5c2299451ea1b957b0672272b3.shtml" target="_blank" rel="noopener noreferrer">中华人民共和国国家卫生健康委员会 WS/T 801—2022《妊娠期妇女体重增长推荐值标准》</a>。美国 CDC 与 NASEM/IOM 2009 仅作为补充参考，不参与默认计算。</p>
         <p>本工具用于体重记录和趋势参考，不是诊断。孕早期官方仅提供 0–2 kg 阶段范围，页面中的孕早期逐周曲线属于基于官方阶段范围生成的趋势参考，并非官方逐周标准值。</p>
-        <p>双胎、妊娠期糖尿病、妊娠并发症及医生制定个体目标者不生成普通参考曲线和“偏快/偏慢”判断，基础体重记录仍可使用。</p>
+        <p>双胎不套用当前单胎通用曲线。妊娠期糖尿病、其他妊娠并发症及医生制定个体目标者不使用通用范围作“偏快/偏慢”判断；符合单胎通用标准时仍可淡化显示通用曲线作为背景对照。医生目标只根据用户录入的医生明确数据绘制，不会由程序推断或外推。</p>
         <p>所有数据仅保存在当前设备和浏览器中。清除浏览器数据、换手机或删除网站数据可能导致记录丢失，网站运营者无法找回。建议定期导出备份。</p>
         <p>本工具不要求姓名、电话、身份证、预产期，也不包含登录、广告或分析追踪。</p>
       </div>
@@ -206,8 +210,30 @@
         <legend>需要个体化评价的情况</legend>
         <label><input id="complicationInput" type="checkbox"><span>存在妊娠期糖尿病或其他妊娠并发症</span></label>
         <label><input id="doctorTargetInput" type="checkbox"><span>医生已经制定个体化体重目标</span></label>
-        <small>勾选后停止普通参考曲线和增重速度判断，但不会影响或删除体重记录。</small>
+        <small>并发症不会自动生成专用曲线；医生目标只有在录入有效目标点后才会显示。勾选状态不会影响或删除体重记录。</small>
       </fieldset>
+      <section class="doctor-plan-editor" id="doctorPlanSection" hidden>
+        <div class="doctor-plan-head">
+          <div><strong>医生目标设置</strong><small>仅录入医生明确提供的数据</small></div>
+          <label class="doctor-plan-switch"><input id="doctorPlanEnabledInput" type="checkbox" checked><span>显示曲线</span></label>
+        </div>
+        <p class="doctor-plan-help">请根据医生提供的数据录入目标。参数不足时不会自动生成曲线。</p>
+        <div class="doctor-target-grid">
+          <label><span>孕周</span><input id="doctorWeekInput" type="number" inputmode="numeric" min="1" max="40" step="1" placeholder="24"></label>
+          <label><span>天数</span><input id="doctorDayInput" type="number" inputmode="numeric" min="0" max="6" step="1" placeholder="0"></label>
+          <label><span>推荐下限 kg</span><input id="doctorLowerInput" type="text" inputmode="decimal" autocomplete="off" placeholder="55.0"></label>
+          <label><span>推荐中位数 kg（可选）</span><input id="doctorMiddleInput" type="text" inputmode="decimal" autocomplete="off" placeholder="56.0"></label>
+          <label><span>推荐上限 kg</span><input id="doctorUpperInput" type="text" inputmode="decimal" autocomplete="off" placeholder="57.0"></label>
+        </div>
+        <div class="doctor-target-actions">
+          <button type="button" class="primary-button" id="saveDoctorTargetButton">添加目标点</button>
+          <button type="button" class="secondary-button" id="cancelDoctorEditButton" hidden>取消编辑</button>
+        </div>
+        <p class="doctor-plan-status" id="doctorPlanStatus" aria-live="polite"></p>
+        <div class="doctor-target-list" id="doctorTargetList"></div>
+        <button type="button" class="doctor-clear-button" id="clearDoctorTargetsButton">清空全部医生目标</button>
+        <p class="doctor-plan-disclaimer">医生目标数据由用户根据医生建议录入，本工具只负责记录和绘图，不提供诊断或治疗建议。</p>
+      </section>
       <output class="bmi-preview" id="bmiPreview">补充身高后自动计算 BMI</output>
       <p class="profile-reference" id="profileReference"></p>
       <div class="sheet-actions">

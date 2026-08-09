@@ -16,6 +16,18 @@
     if(underflow>0) sorted.forEach(item=>item.displayY+=underflow);
     return sorted;
   }
+  function xAxisTicks(plotW){
+    const candidates=Array.from({length:14},(_,index)=>1+index*3).filter(week=>week<=40),minGap=28;
+    const maxLabels=Math.max(2,Math.floor(plotW/minGap)+1);
+    if(maxLabels>=candidates.length)return candidates;
+    const stride=Math.ceil((candidates.length-1)/(maxLabels-1));
+    const ticks=candidates.filter((_,index)=>index%stride===0);
+    if(ticks.at(-1)!==40){
+      const distance=(40-ticks.at(-1))/39*plotW;
+      if(distance<minGap)ticks[ticks.length-1]=40;else ticks.push(40);
+    }
+    return ticks;
+  }
   function roundedRect(ctx,x,y,width,height,radius=8){
     const r=Math.min(radius,width/2,height/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+width,y,x+width,y+height,r);ctx.arcTo(x+width,y+height,x,y+height,r);ctx.arcTo(x,y+height,x,y,r);ctx.arcTo(x,y,x+width,y,r);ctx.closePath();
   }
@@ -30,35 +42,47 @@
   function drawRangeInfo(ctx,query,xx,frame){
     const {pad,plotW}=frame,boxW=Math.min(174,plotW-14);
     const left=xx>pad.l+plotW/2?pad.l+7:pad.l+plotW-boxW-7,top=pad.t+7;
-    const colors={upper:cssVar('--range-upper','#a45116'),middle:cssVar('--range-middle','#0f7335'),lower:cssVar('--range-lower','#006fa8')};
+    const doctorColor=cssVar('--doctor','#7551b9');
+    const colors=query.kind==='doctor'?{upper:doctorColor,middle:doctorColor,lower:doctorColor}:{upper:cssVar('--range-upper','#a45116'),middle:cssVar('--range-middle','#0f7335'),lower:cssVar('--range-lower','#006fa8')};
     const outline=cssVar('--chart-label-outline','rgba(255,255,255,.92)');
     const text=(value,x,y,{color=cssVar('--text','#17181b'),font='600 9px -apple-system,BlinkMacSystemFont,sans-serif'}={})=>{
       ctx.font=font;ctx.strokeStyle=outline;ctx.lineWidth=2.4;ctx.lineJoin='round';ctx.strokeText(value,x,y);ctx.fillStyle=color;ctx.fillText(value,x,y);
     };
     ctx.save();ctx.textAlign='left';ctx.textBaseline='middle';text(`${query.week}周${query.day}天`,left+4,top+10,{font:'700 10px -apple-system,BlinkMacSystemFont,sans-serif'});
+    if(query.doctorUnavailable)text('该孕周暂无医生目标数据',left+4,top+25,{color:doctorColor,font:'700 9px -apple-system,BlinkMacSystemFont,sans-serif'});
+    if(query.noReference){text('通用参考当前也不可用',left+4,top+43,{color:cssVar('--muted','#72757d'),font:'8px -apple-system,BlinkMacSystemFont,sans-serif'});ctx.restore();return;}
+    const rowTop=query.doctorUnavailable?43:29;
+    const prefix=query.kind==='doctor'?'医生目标':query.doctorUnavailable?'通用参考':'推荐';
+    const middleLabel=query.kind==='doctor'?(query.middleSource==='provided'?'医生目标中位数':'范围中点'):`${prefix}中位数`;
     const rows=[
-      {key:'upper',label:'推荐上限',value:query.high,shape:'bar'},
-      {key:'middle',label:'推荐中位数',value:query.target,shape:'ring'},
-      {key:'lower',label:'推荐下限',value:query.low,shape:'diamond'}
+      {key:'upper',label:`${prefix}上限`,value:query.high,shape:'bar'},
+      {key:'middle',label:middleLabel,value:query.target,shape:'ring'},
+      {key:'lower',label:`${prefix}下限`,value:query.low,shape:'diamond'}
     ];
     rows.forEach((row,index)=>{
-      const rowY=top+29+index*18;ctx.strokeStyle=colors[row.key];ctx.fillStyle=colors[row.key];ctx.lineWidth=row.shape==='ring'?2:1.7;
+      const rowY=top+rowTop+index*18;ctx.strokeStyle=colors[row.key];ctx.fillStyle=colors[row.key];ctx.lineWidth=row.shape==='ring'?2:1.7;
       if(row.shape==='bar'){ctx.beginPath();ctx.moveTo(left+4,rowY);ctx.lineTo(left+14,rowY);ctx.stroke();}
       else if(row.shape==='ring'){ctx.beginPath();ctx.arc(left+9,rowY,4,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(left+9,rowY,1.5,0,Math.PI*2);ctx.fill();}
       else{ctx.beginPath();ctx.moveTo(left+9,rowY-4);ctx.lineTo(left+13,rowY);ctx.lineTo(left+9,rowY+4);ctx.lineTo(left+5,rowY);ctx.closePath();ctx.fill();}
       text(`${row.label} ${row.value.toFixed(1)} kg`,left+20,rowY+.5,{color:colors[row.key],font:`${row.shape==='ring'?'700':'600'} 9px -apple-system,BlinkMacSystemFont,sans-serif`});
     });
-    text('估算推荐范围，仅供趋势参考',left+4,top+88,{color:cssVar('--muted','#72757d'),font:'8px -apple-system,BlinkMacSystemFont,sans-serif'});ctx.restore();
+    let footerY=top+rowTop+59;
+    if(Number.isFinite(query.actualWeight)){text(`当前实际体重 ${query.actualWeight.toFixed(1)} kg`,left+4,footerY,{color:cssVar('--accent','#0a84ff'),font:'700 8px -apple-system,BlinkMacSystemFont,sans-serif'});footerY+=13;}
+    text(query.kind==='doctor'?'医生录入目标，仅负责记录和绘图':'通用推荐范围，仅供趋势参考',left+4,footerY,{color:cssVar('--muted','#72757d'),font:'8px -apple-system,BlinkMacSystemFont,sans-serif'});ctx.restore();
   }
   function drawCrosshair(frame,query){
-    if(!frame||!query)return;const {ctx,pad,plotW,height,x,y}=frame,xx=x(query.gestation),yy=y(query.target),upperY=y(query.high),lowerY=y(query.low);
-    ctx.save();ctx.strokeStyle=cssVar('--accent','#0a84ff');ctx.globalAlpha=.48;ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,height-pad.b);ctx.moveTo(pad.l,yy);ctx.lineTo(pad.l+plotW,yy);ctx.stroke();ctx.restore();
+    if(!frame||!query)return;const {ctx,pad,plotW,height,x,y}=frame,xx=x(query.gestation);
+    const primaryColor=query.kind==='doctor'?cssVar('--doctor','#7551b9'):cssVar('--accent','#0a84ff');
+    if(query.noReference){ctx.save();ctx.strokeStyle=primaryColor;ctx.globalAlpha=.48;ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,height-pad.b);ctx.stroke();ctx.restore();drawTag(ctx,`${query.week}周${query.day}天`,xx,height-pad.b+10,frame);drawRangeInfo(ctx,query,xx,frame);return;}
+    const yy=y(query.target),upperY=y(query.high),lowerY=y(query.low);
+    ctx.save();ctx.strokeStyle=primaryColor;ctx.globalAlpha=.48;ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,height-pad.b);ctx.moveTo(pad.l,yy);ctx.lineTo(pad.l+plotW,yy);ctx.stroke();ctx.restore();
     ctx.save();ctx.setLineDash([2,3]);ctx.lineWidth=1;ctx.globalAlpha=.5;
     ctx.strokeStyle=cssVar('--range-upper','#a45116');ctx.beginPath();ctx.moveTo(xx-18,upperY);ctx.lineTo(xx+18,upperY);ctx.stroke();
     ctx.strokeStyle=cssVar('--range-lower','#006fa8');ctx.beginPath();ctx.moveTo(xx-14,lowerY);ctx.lineTo(xx+14,lowerY);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
-    ctx.strokeStyle=cssVar('--range-upper','#a45116');ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(xx-5,upperY);ctx.lineTo(xx+5,upperY);ctx.stroke();
-    ctx.fillStyle=cssVar('--panel-solid','#fff');ctx.strokeStyle=cssVar('--range-middle','#0f7335');ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(xx,yy,6,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle=cssVar('--range-middle','#0f7335');ctx.beginPath();ctx.arc(xx,yy,2.3,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle=cssVar('--range-lower','#006fa8');ctx.beginPath();ctx.moveTo(xx,lowerY-4);ctx.lineTo(xx+4,lowerY);ctx.lineTo(xx,lowerY+4);ctx.lineTo(xx-4,lowerY);ctx.closePath();ctx.fill();ctx.restore();
+    const upperColor=query.kind==='doctor'?primaryColor:cssVar('--range-upper','#a45116'),middleColor=query.kind==='doctor'?primaryColor:cssVar('--range-middle','#0f7335'),lowerColor=query.kind==='doctor'?primaryColor:cssVar('--range-lower','#006fa8');
+    ctx.strokeStyle=upperColor;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(xx-5,upperY);ctx.lineTo(xx+5,upperY);ctx.stroke();
+    ctx.fillStyle=cssVar('--panel-solid','#fff');ctx.strokeStyle=middleColor;ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(xx,yy,6,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle=middleColor;ctx.beginPath();ctx.arc(xx,yy,2.3,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=lowerColor;ctx.beginPath();ctx.moveTo(xx,lowerY-4);ctx.lineTo(xx+4,lowerY);ctx.lineTo(xx,lowerY+4);ctx.lineTo(xx-4,lowerY);ctx.closePath();ctx.fill();ctx.restore();
     drawTag(ctx,`${query.week}周${query.day}天`,xx,height-pad.b+10,frame);
     drawRangeInfo(ctx,query,xx,frame);
   }
@@ -70,22 +94,26 @@
     canvas=element;const {ctx,width,height}=setup(element);
     const minWeek=Number(opts.minWeek??1),maxWeek=Number(opts.maxWeek??40+6/7),currentWeek=Number(opts.currentWeek??25);
     const records=[...(opts.records||[])].filter(record=>Number.isFinite(+record.gestation)&&Number.isFinite(+record.weight)&&record.gestation>=minWeek&&record.gestation<=maxWeek).sort((a,b)=>a.gestation-b.gestation);
-    const recFn=typeof opts.recommendationAtWeek==='function'?opts.recommendationAtWeek:null;
+    const generalRecFn=typeof opts.generalRecommendationAtWeek==='function'?opts.generalRecommendationAtWeek:(typeof opts.recommendationAtWeek==='function'?opts.recommendationAtWeek:null);
+    const doctorRecFn=typeof opts.doctorRecommendationAtWeek==='function'?opts.doctorRecommendationAtWeek:null;
+    const doctorEnabled=opts.doctorEnabled===true,doctorTargets=doctorEnabled&&Array.isArray(opts.doctorTargets)?opts.doctorTargets:[],generalMuted=opts.generalMuted===true;
     const samples=[];
-    if(recFn){
+    if(generalRecFn){
       for(let gestation=minWeek;gestation<=maxWeek+0.001;gestation+=0.25){
-        const result=recFn(gestation);
+        const result=generalRecFn(gestation);
         if(result?.available&&[result.low,result.target,result.high].every(Number.isFinite)) samples.push({gestation,low:+result.low,target:+result.target,high:+result.high});
       }
       if(samples.length&&samples.at(-1).gestation<maxWeek){
-        const result=recFn(maxWeek);
+        const result=generalRecFn(maxWeek);
         if(result?.available) samples.push({gestation:maxWeek,low:+result.low,target:+result.target,high:+result.high});
       }
     }
-    const hasReference=samples.length>1;if(!hasReference)crosshair=null;
-    const pad={l:38,r:hasReference?(width<360?54:62):16,t:25,b:38};
+    const doctorSamples=doctorEnabled&&Array.isArray(opts.doctorCurve)?opts.doctorCurve.filter(sample=>sample?.available&&[sample.low,sample.target,sample.high].every(Number.isFinite)):[];
+    const validDoctorTargets=doctorTargets.filter(target=>[target.gestation,target.lower,target.upper].every(value=>Number.isFinite(Number(value))));
+    const hasGeneralReference=samples.length>1,hasDoctorReference=doctorSamples.length>0||validDoctorTargets.length>0,hasReference=hasGeneralReference||hasDoctorReference;if(!hasReference)crosshair=null;
+    const pad={l:38,r:hasReference?(width<360?54:62):16,t:25,b:44};
     const plotW=Math.max(150,width-pad.l-pad.r),plotH=height-pad.t-pad.b;
-    const values=[];samples.forEach(sample=>values.push(sample.low,sample.target,sample.high));records.forEach(record=>values.push(+record.weight));
+    const values=[];samples.forEach(sample=>values.push(sample.low,sample.target,sample.high));doctorSamples.forEach(sample=>values.push(sample.low,sample.target,sample.high));validDoctorTargets.forEach(target=>values.push(+target.lower,+target.upper,...(target.middle===null?[]:[+target.middle])));records.forEach(record=>values.push(+record.weight));
     const finite=values.filter(Number.isFinite);
     let yMin=finite.length?Math.min(...finite)-1:45,yMax=finite.length?Math.max(...finite)+1:75;
     if(yMax-yMin<8){const middle=(yMin+yMax)/2;yMin=middle-4;yMax=middle+4;}
@@ -99,13 +127,13 @@
     }
     ctx.restore();
 
-    if(hasReference){
-      ctx.save();const gradient=ctx.createLinearGradient(0,pad.t,0,height-pad.b);gradient.addColorStop(0,'rgba(52,199,89,.17)');gradient.addColorStop(1,'rgba(52,199,89,.05)');ctx.fillStyle=gradient;ctx.beginPath();
+    if(hasGeneralReference){
+      ctx.save();ctx.globalAlpha=generalMuted?.34:1;const gradient=ctx.createLinearGradient(0,pad.t,0,height-pad.b);gradient.addColorStop(0,'rgba(52,199,89,.17)');gradient.addColorStop(1,'rgba(52,199,89,.05)');ctx.fillStyle=gradient;ctx.beginPath();
       samples.forEach((sample,index)=>index?ctx.lineTo(x(sample.gestation),y(sample.high)):ctx.moveTo(x(sample.gestation),y(sample.high)));
       for(let index=samples.length-1;index>=0;index--)ctx.lineTo(x(samples[index].gestation),y(samples[index].low));
       ctx.closePath();ctx.fill();ctx.restore();
 
-      ctx.save();ctx.strokeStyle=cssVar('--green','#29c763');ctx.lineWidth=2;ctx.setLineDash([5,5]);ctx.beginPath();samples.forEach((sample,index)=>index?ctx.lineTo(x(sample.gestation),y(sample.target)):ctx.moveTo(x(sample.gestation),y(sample.target)));ctx.stroke();ctx.restore();
+      ctx.save();ctx.globalAlpha=generalMuted?.42:1;ctx.strokeStyle=cssVar('--green','#29c763');ctx.lineWidth=generalMuted?1.5:2;ctx.setLineDash(generalMuted?[3,6]:[5,5]);ctx.beginPath();samples.forEach((sample,index)=>index?ctx.lineTo(x(sample.gestation),y(sample.target)):ctx.moveTo(x(sample.gestation),y(sample.target)));ctx.stroke();ctx.restore();
 
       const end=samples.at(-1),edgeX=x(end.gestation);
       const labels=separateLabels([
@@ -114,7 +142,18 @@
         {text:'下限',value:end.low,y:y(end.low),alpha:.72}
       ],pad.t+5,height-pad.b-5,width<360?12:13);
       ctx.save();ctx.strokeStyle=cssVar('--green','#29c763');ctx.fillStyle=cssVar('--green','#29c763');ctx.lineWidth=1;ctx.font=`600 ${width<360?9:10}px -apple-system,BlinkMacSystemFont,sans-serif`;ctx.textAlign='left';ctx.textBaseline='middle';
-      labels.forEach(label=>{ctx.globalAlpha=label.alpha;ctx.beginPath();ctx.moveTo(edgeX+2,label.y);ctx.lineTo(edgeX+7,label.displayY);ctx.stroke();ctx.fillText(label.text,edgeX+9,label.displayY);});ctx.restore();
+      labels.forEach(label=>{ctx.globalAlpha=label.alpha*(generalMuted?.45:1);ctx.beginPath();ctx.moveTo(edgeX+2,label.y);ctx.lineTo(edgeX+7,label.displayY);ctx.stroke();ctx.fillText(label.text,edgeX+9,label.displayY);});ctx.restore();
+    }
+
+    if(hasDoctorReference){
+      const doctorColor=cssVar('--doctor','#7551b9');
+      if(doctorSamples.length>1){
+        ctx.save();ctx.fillStyle=cssVar('--doctor-soft','rgba(117,81,185,.14)');ctx.beginPath();doctorSamples.forEach((sample,index)=>index?ctx.lineTo(x(sample.gestation),y(sample.high)):ctx.moveTo(x(sample.gestation),y(sample.high)));for(let index=doctorSamples.length-1;index>=0;index--)ctx.lineTo(x(doctorSamples[index].gestation),y(doctorSamples[index].low));ctx.closePath();ctx.fill();ctx.restore();
+        ctx.save();ctx.strokeStyle=doctorColor;ctx.lineWidth=1.8;ctx.setLineDash([]);['high','low'].forEach(key=>{ctx.beginPath();doctorSamples.forEach((sample,index)=>index?ctx.lineTo(x(sample.gestation),y(sample[key])):ctx.moveTo(x(sample.gestation),y(sample[key])));ctx.stroke();});ctx.restore();
+        ctx.save();ctx.strokeStyle=doctorColor;ctx.lineWidth=2.4;for(let index=1;index<doctorSamples.length;index++){const left=doctorSamples[index-1],right=doctorSamples[index];ctx.setLineDash(left.middleSource==='provided'&&right.middleSource==='provided'?[]:[4,4]);ctx.beginPath();ctx.moveTo(x(left.gestation),y(left.target));ctx.lineTo(x(right.gestation),y(right.target));ctx.stroke();}ctx.restore();
+      }
+      ctx.save();ctx.strokeStyle=doctorColor;ctx.fillStyle=doctorColor;ctx.lineWidth=2;
+      validDoctorTargets.forEach(target=>{const xx=x(+target.gestation),upperY=y(+target.upper),lowerY=y(+target.lower);ctx.beginPath();ctx.moveTo(xx,upperY);ctx.lineTo(xx,lowerY);ctx.stroke();[upperY,lowerY].forEach(yy=>{ctx.beginPath();ctx.arc(xx,yy,3,0,Math.PI*2);ctx.fill();});if(target.middle!==null){ctx.fillStyle=cssVar('--panel-solid','#fff');ctx.beginPath();ctx.arc(xx,y(+target.middle),5,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle=doctorColor;}});ctx.restore();
     }
 
     if(currentWeek>=minWeek&&currentWeek<=maxWeek){
@@ -126,8 +165,8 @@
       records.forEach(record=>{const xx=x(record.gestation),yy=y(record.weight);ctx.beginPath();ctx.fillStyle=cssVar('--panel-solid','#fff');ctx.arc(xx,yy,6,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.fillStyle=cssVar('--accent','#0a84ff');ctx.arc(xx,yy,3.7,0,Math.PI*2);ctx.fill();});ctx.restore();
     }
 
-    const recommendedPoints=hasReference?records.map(record=>{
-      const recommendation=recFn(record.gestation);return recommendation?.available?{gestation:record.gestation,target:Number(recommendation.target),week:record.week,day:record.day}:null;
+    const recommendedPoints=hasGeneralReference?records.map(record=>{
+      const recommendation=generalRecFn(record.gestation);return recommendation?.available?{gestation:record.gestation,target:Number(recommendation.target),week:record.week,day:record.day}:null;
     }).filter(point=>point&&Number.isFinite(point.target)):[];
     if(recommendedPoints.length){
       ctx.save();ctx.strokeStyle=cssVar('--green','#29c763');ctx.fillStyle=cssVar('--panel-solid','#fff');ctx.lineWidth=2;
@@ -135,14 +174,16 @@
     }
 
     ctx.save();ctx.fillStyle=cssVar('--muted','#72757d');ctx.font=`${width<360?9:10}px -apple-system,BlinkMacSystemFont,sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';
-    Array.from({length:14},(_,index)=>1+index*3).filter(week=>week<=40).forEach(week=>ctx.fillText(`${week}周`,x(week),height-pad.b+9));ctx.restore();
+    xAxisTicks(plotW).forEach(week=>ctx.fillText(String(week),x(week),height-pad.b+8));
+    ctx.font=`${width<360?8:9}px -apple-system,BlinkMacSystemFont,sans-serif`;ctx.textAlign='right';ctx.fillText('单位：周',pad.l+plotW,height-11);ctx.restore();
 
     hitPoints=[
       ...records.map(record=>({type:'actual',x:x(record.gestation),y:y(record.weight),record,week:record.week,day:record.day,weight:record.weight})),
-      ...recommendedPoints.map(point=>({type:'recommended',x:x(point.gestation),y:y(point.target),week:point.week,day:point.day,weight:point.target}))
+      ...recommendedPoints.map(point=>({type:'recommended',x:x(point.gestation),y:y(point.target),week:point.week,day:point.day,weight:point.target})),
+      ...validDoctorTargets.filter(target=>target.middle!==null).map(target=>({type:'doctor',x:x(target.gestation),y:y(target.middle),week:target.week,day:target.day,weight:target.middle}))
     ];
     const baseImage=ctx.getImageData(0,0,element.width,element.height);
-    lastFrame={element,opts,ctx,width,height,pad,plotW,plotH,minWeek,maxWeek,recFn,x,y,baseImage};
+    lastFrame={element,opts,ctx,width,height,pad,plotW,plotH,minWeek,maxWeek,generalRecFn,doctorRecFn,doctorEnabled,records,x,y,baseImage};
     if(crosshair&&hasReference)drawCrosshair(lastFrame,crosshair);
     return {hitPoints};
   }
@@ -160,16 +201,23 @@
   }
   function nearest(clientX,clientY){return nearestPoint(canvas,clientX,clientY);}
   function showCrosshair(clientX,clientY){
-    const frame=lastFrame;if(!frame?.recFn||!frame.element)return clearCrosshair();
+    const frame=lastFrame;if((!frame?.generalRecFn&&!frame?.doctorRecFn)||!frame.element)return clearCrosshair();
     const rect=frame.element.getBoundingClientRect(),px=clientX-rect.left,py=clientY-rect.top;
     if(py<frame.pad.t||py>frame.height-frame.pad.b||px<frame.pad.l||px>frame.pad.l+frame.plotW)return clearCrosshair();
     const maxQueryWeek=Math.min(40,frame.maxWeek),raw=frame.minWeek+(px-frame.pad.l)/frame.plotW*(frame.maxWeek-frame.minWeek);
     const totalDays=Math.round(Math.max(frame.minWeek,Math.min(maxQueryWeek,raw))*7),gestation=totalDays/7;
-    const result=frame.recFn(gestation);
-    if(!result?.available||![result.low,result.target,result.high].every(value=>Number.isFinite(Number(value))))return clearCrosshair();
+    const doctorResult=frame.doctorEnabled&&frame.doctorRecFn?frame.doctorRecFn(gestation):null;
+    const generalResult=frame.generalRecFn?frame.generalRecFn(gestation):null;
+    const result=doctorResult?.available?doctorResult:generalResult;
+    if(!result?.available){
+      if(!frame.doctorEnabled)return clearCrosshair();
+      crosshair={gestation,week:Math.floor(totalDays/7),day:totalDays%7,kind:'doctor',doctorUnavailable:true,noReference:true,actualWeight:null};restoreBase();drawCrosshair(lastFrame,crosshair);return {...crosshair};
+    }
+    if(![result.low,result.target,result.high].every(value=>Number.isFinite(Number(value))))return clearCrosshair();
     const low=Number(result.low),target=Number(result.target),high=Number(result.high);
     if(low>target||target>high)return clearCrosshair();
-    crosshair={gestation,week:Math.floor(totalDays/7),day:totalDays%7,low,target,high};
+    const actual=frame.records.find(record=>Math.abs(Number(record.gestation)-gestation)<1e-6);
+    crosshair={gestation,week:Math.floor(totalDays/7),day:totalDays%7,low,target,high,kind:doctorResult?.available?'doctor':'general',middleSource:doctorResult?.middleSource||'provided',doctorUnavailable:frame.doctorEnabled&&!doctorResult?.available,actualWeight:actual?Number(actual.weight):null};
     restoreBase();drawCrosshair(lastFrame,crosshair);return {...crosshair};
   }
   function clearCrosshair(){

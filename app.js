@@ -4,14 +4,15 @@
   const els={
     week:$('weekInput'),day:$('dayInput'),weight:$('weightInput'),target:$('targetWeight'),range:$('weightRange'),targetLabel:$('targetLabel'),rangeLabel:$('rangeLabel'),baseLabel:$('baseWeightLabel'),profileNotice:$('profileNotice'),
     baseButton:$('baseWeightButton'),dialog:$('settingsDialog'),baseInput:$('baseWeightInput'),heightInput:$('heightInput'),pluralityInput:$('pluralityInput'),complicationInput:$('complicationInput'),doctorTargetInput:$('doctorTargetInput'),bmiPreview:$('bmiPreview'),profileReference:$('profileReference'),saveBase:$('saveBaseWeightButton'),saveState:$('saveState'),
-    chart:$('weightChart'),chartWrap:$('chartWrap'),chartEmpty:$('chartEmpty'),chartHeadline:$('chartHeadline'),chartHint:$('chartHint'),chartGuide:$('chartGestureGuide'),legendRecommendation:$('legendRecommendation'),legendRange:$('legendRange'),historyCard:$('historyCard'),historyList:$('historyList'),clear:$('clearHistoryButton'),
+    doctorPlanSection:$('doctorPlanSection'),doctorPlanEnabled:$('doctorPlanEnabledInput'),doctorWeek:$('doctorWeekInput'),doctorDay:$('doctorDayInput'),doctorLower:$('doctorLowerInput'),doctorMiddle:$('doctorMiddleInput'),doctorUpper:$('doctorUpperInput'),saveDoctorTarget:$('saveDoctorTargetButton'),cancelDoctorEdit:$('cancelDoctorEditButton'),doctorPlanStatus:$('doctorPlanStatus'),doctorTargetList:$('doctorTargetList'),clearDoctorTargets:$('clearDoctorTargetsButton'),
+    chart:$('weightChart'),chartWrap:$('chartWrap'),chartEmpty:$('chartEmpty'),chartHeadline:$('chartHeadline'),chartHint:$('chartHint'),chartGuide:$('chartGestureGuide'),legendDoctor:$('legendDoctor'),legendRecommendation:$('legendRecommendation'),legendRange:$('legendRange'),medicalNotice:$('medicalNotice'),generalReferenceSummary:$('generalReferenceSummary'),historyCard:$('historyCard'),historyList:$('historyList'),clear:$('clearHistoryButton'),
     tooltip:$('chartTooltip'),tooltipType:$('tooltipType'),tooltipWeek:$('tooltipWeek'),tooltipWeight:$('tooltipWeight'),trendGrid:$('trendGrid'),sinceLast:$('sinceLastValue'),sinceLastMeta:$('sinceLastMeta'),fourWeek:$('fourWeekValue'),fourWeekMeta:$('fourWeekMeta'),
     historyCount:$('historyCount'),historyToggle:$('historyToggle'),recordDialog:$('recordDialog'),recordDialogWeek:$('recordDialogWeek'),recordWeight:$('recordWeightInput'),saveRecord:$('saveRecordButton'),deleteRecord:$('deleteRecordButton'),
     totalGain:$('totalGainValue'),totalGainMeta:$('totalGainMeta'),position:$('positionValue'),positionMeta:$('positionMeta'),paceStatus:$('paceStatusValue'),paceStatusMeta:$('paceStatusMeta'),exportBackup:$('exportBackupButton'),importBackup:$('importBackupButton'),backupFile:$('backupFileInput'),backupStatus:$('backupStatus'),
     installPanel:$('installPanel'),installMessage:$('installMessage'),installButton:$('installAppButton'),dismissInstall:$('dismissInstallButton')
   };
   let state=PregnancyStorage.load();
-  let tooltipTimer,editingId=null,showAllHistory=false,deferredInstallPrompt=null,weightDirty=false;
+  let tooltipTimer,editingId=null,editingDoctorTargetId=null,showAllHistory=false,deferredInstallPrompt=null,weightDirty=false;
   const INSTALL_DISMISS_KEY='pregnancy-weight-install-dismissed-at';
   const INSTALL_COOLDOWN_MS=14*24*60*60*1000;
   const SAVE_GUIDANCE='孕周和当前体重填写完整后自动保存';
@@ -42,6 +43,8 @@
     els.pluralityInput.value=state.plurality||'singleton';
     els.complicationInput.checked=state.hasPregnancyComplication===true;
     els.doctorTargetInput.checked=state.hasDoctorTarget===true;
+    els.doctorPlanEnabled.checked=state.doctorPlanEnabled!==false;
+    updateDoctorPlanVisibility();renderDoctorTargetList();
     const profile=currentProfile();
     if(profile.preWeight===null) els.baseLabel.textContent='请输入孕前体重';
     else if(profile.heightCm===null) els.baseLabel.textContent=`孕前体重 ${profile.preWeight.toFixed(1)} kg · 补充身高`;
@@ -50,12 +53,32 @@
     updateBmiPreview();
   }
 
+  function updateDoctorPlanVisibility(){els.doctorPlanSection.hidden=!els.doctorTargetInput.checked;}
+  function setDoctorPlanStatus(message='',tone=''){els.doctorPlanStatus.textContent=message;els.doctorPlanStatus.dataset.tone=tone;}
+  function resetDoctorTargetForm(){editingDoctorTargetId=null;[els.doctorWeek,els.doctorDay,els.doctorLower,els.doctorMiddle,els.doctorUpper].forEach(input=>input.value='');els.saveDoctorTarget.textContent='添加目标点';els.cancelDoctorEdit.hidden=true;setDoctorPlanStatus();}
+  function renderDoctorTargetList(){
+    els.doctorTargetList.replaceChildren();const targets=[...(state.doctorTargets||[])].sort((a,b)=>a.gestation-b.gestation);
+    targets.forEach(target=>{
+      const item=document.createElement('div');item.className='doctor-target-item';item.dataset.id=target.id;
+      const copy=document.createElement('div');copy.className='doctor-target-copy';
+      const title=document.createElement('strong');title.textContent=`${target.week}周${target.day?`${target.day}天`:''}`;
+      const detail=document.createElement('small');detail.textContent=`下限 ${target.lower.toFixed(1)} kg · ${target.middle===null?'未提供中位数':`中位数 ${target.middle.toFixed(1)} kg`} · 上限 ${target.upper.toFixed(1)} kg`;
+      copy.append(title,detail);
+      const actions=document.createElement('div');actions.className='doctor-target-item-actions';
+      const edit=document.createElement('button');edit.type='button';edit.dataset.action='edit';edit.textContent='编辑';
+      const remove=document.createElement('button');remove.type='button';remove.dataset.action='delete';remove.textContent='删除';actions.append(edit,remove);item.append(copy,actions);els.doctorTargetList.append(item);
+    });
+    els.clearDoctorTargets.hidden=targets.length===0;
+  }
+
   function renderProfileNotice(profile){
     let text='',tone='info';
     if(profile.preWeight===null){text='请先输入准妈妈孕前体重';tone='attention';}
     else if(profile.heightCm===null){text='请补充身高，以计算孕前 BMI 和个性化参考';tone='attention';}
     else if(!state.pluralityConfirmed){text='请确认单胎或双胎设置';tone='attention';}
     else if(profile.referenceReason){text=referenceMessage(profile.referenceReason);tone='attention';}
+    else if(state.hasPregnancyComplication){text='当前存在妊娠并发症，通用曲线仅供趋势参考，请结合医生意见进行个体化评价。';tone='attention';}
+    else if(state.hasDoctorTarget){text=(state.doctorTargets||[]).length?'已录入医生个体化目标；通用推荐范围仅供对照。':'请根据医生提供的数据录入目标。参数不足时不会自动生成曲线。';tone='attention';}
     else text=`中国标准 · ${profile.bmiCategory.label} · BMI ${profile.bmi.toFixed(1)}；孕早期逐周线为基于官方阶段范围生成的趋势参考`;
     els.profileNotice.textContent=text;
     els.profileNotice.dataset.tone=tone;
@@ -68,6 +91,7 @@
       'weight-limit':'孕前体重超过 125 kg，不生成普通参考结论，请结合产检医生意见进行个体化评价。',
       complication:'存在妊娠期糖尿病或其他妊娠并发症，请遵医嘱进行个体化体重管理。',
       'doctor-target':'医生已制定个体化体重目标，请以医生建议为准。',
+      'doctor-missing':'当前孕周暂无医生目标数据',
       preWeight:'请先输入孕前体重',
       height:'请补充身高以计算 BMI',
       gestation:'请填写完整孕周和天数'
@@ -104,6 +128,11 @@
   function unavailableRecommendation(profile){
     return {available:false,reason:'gestation',gestation:NaN,profile,totalGain:PregnancyCalculator.totalGainReference(profile)};
   }
+  const doctorPlanActive=()=>state.hasDoctorTarget===true&&state.doctorPlanEnabled!==false;
+  function doctorRecommendation(selection){
+    if(!doctorPlanActive()||!selection.valid)return {available:false,reason:'disabled',gestation:selection.valid?selection.week+selection.day/7:NaN};
+    return PregnancyCalculator.doctorTargetAtGestation(state.doctorTargets,selection.week+selection.day/7);
+  }
 
   function updateBmiPreview(){
     const profile=PregnancyCalculator.profile(els.baseInput.value,els.heightInput.value,els.pluralityInput.value,{hasPregnancyComplication:els.complicationInput.checked,hasDoctorTarget:els.doctorTargetInput.checked});
@@ -112,17 +141,20 @@
     els.bmiPreview.textContent=`孕前 BMI ${profile.bmi.toFixed(1)} · ${profile.bmiCategory.label}`;
     const total=PregnancyCalculator.totalGainReference(profile);
     if(!profile.referenceEligible) els.profileReference.textContent=referenceMessage(profile.referenceReason);
-    else els.profileReference.textContent=`WS/T 801—2022 全程总增重参考：${fmtRange(total)}。孕早期逐周线为基于官方 0–2 kg 阶段范围生成的趋势参考。`;
+    else{
+      const individual=els.complicationInput.checked?' 当前存在妊娠并发症，通用曲线仅供趋势参考。':els.doctorTargetInput.checked?' 医生目标需按医生明确数据录入，通用范围仅供对照。':'';
+      els.profileReference.textContent=`WS/T 801—2022 全程总增重参考：${fmtRange(total)}。孕早期逐周线为基于官方 0–2 kg 阶段范围生成的趋势参考。${individual}`;
+    }
   }
 
-  function renderInsights(recommendation,profile){
+  function renderInsights(recommendation,profile,{doctor=false}={}){
     const current=Number(els.weight.value);
     if(!validWeight(current)||profile.preWeight===null){
       els.totalGain.textContent='--';
       els.totalGainMeta.textContent=profile.preWeight===null?'请先输入孕前体重':'输入当前体重后显示';
     }else{
       els.totalGain.textContent=fmtDelta(current-profile.preWeight);
-      if(recommendation.available) els.totalGainMeta.textContent=`本周估算累计约 +${(recommendation.target-profile.preWeight).toFixed(1)} kg`;
+      if(recommendation.available) els.totalGainMeta.textContent=doctor?`本周目标中心累计约 +${(recommendation.target-profile.preWeight).toFixed(1)} kg`:`本周估算累计约 +${(recommendation.target-profile.preWeight).toFixed(1)} kg`;
       else if(recommendation.totalGain) els.totalGainMeta.textContent=`全程参考 ${fmtRange(recommendation.totalGain)}`;
       else els.totalGainMeta.textContent=recommendation.reason==='gestation'?'填写完整孕周后显示参考':referenceMessage(recommendation.reason);
     }
@@ -132,11 +164,11 @@
     }else{
       const diff=current-recommendation.target;
       const within=current>=recommendation.low&&current<=recommendation.high;
-      els.position.textContent=within?'参考范围内':diff>0?'高于参考':'低于参考';
+      els.position.textContent=within?(doctor?'目标范围内':'参考范围内'):diff>0?(doctor?'高于目标':'高于参考'):(doctor?'低于目标':'低于参考');
       els.position.dataset.status=within?'ok':diff>0?'high':'low';
       els.positionMeta.textContent=Math.abs(diff)<0.05
-        ? `接近估算中位线 · 范围 ${recommendation.low.toFixed(1)}–${recommendation.high.toFixed(1)}`
-        : `${Math.abs(diff).toFixed(1)} kg ${diff>0?'高于':'低于'}估算中位线 · 范围 ${recommendation.low.toFixed(1)}–${recommendation.high.toFixed(1)}`;
+        ? `${doctor?(recommendation.middleSource==='provided'?'接近医生目标中位数':'接近范围中点'):'接近估算中位线'} · 范围 ${recommendation.low.toFixed(1)}–${recommendation.high.toFixed(1)}`
+        : `${Math.abs(diff).toFixed(1)} kg ${diff>0?'高于':'低于'}${doctor?'目标中心':'估算中位线'} · 范围 ${recommendation.low.toFixed(1)}–${recommendation.high.toFixed(1)}`;
     }
     const pace=PregnancyCalculator.recentPace(state.records,profile);
     if(!pace.available){
@@ -171,25 +203,31 @@
     }
   }
 
-  function renderEnhancedChart(recommendation){
+  function renderEnhancedChart(recommendation,doctor){
     PregnancyChart.clearCrosshair();
+    const activeDoctor=doctorPlanActive();
     PregnancyChart.drawChart(els.chart,{
       records:state.records,
       currentWeek:recommendation.gestation,
       minWeek:D.minWeek,
       maxWeek:D.maxWeek+D.maxDay/7,
-      recommendationAtWeek:recommendation.available
+      generalRecommendationAtWeek:recommendation.available
         ? gestation=>PregnancyCalculator.recommendationAtGestation(state.preWeight,state.heightCm,state.plurality,gestation,medicalState())
-        : null
+        : null,
+      generalMuted:state.hasPregnancyComplication||activeDoctor,
+      doctorEnabled:activeDoctor,
+      doctorTargets:state.doctorTargets,
+      doctorCurve:activeDoctor?PregnancyCalculator.doctorCurve(state.doctorTargets):[],
+      doctorRecommendationAtWeek:activeDoctor?gestation=>PregnancyCalculator.doctorTargetAtGestation(state.doctorTargets,gestation):null
     });
   }
 
   function chartGuideSeen(){try{return localStorage.getItem(CHART_GUIDE_KEY)==='1';}catch{return false;}}
   function updateChartGuidance(recommendation){
-    const available=recommendation.available===true;
+    const available=recommendation.available===true||doctorPlanActive()&&(state.doctorTargets||[]).length>0;
     const desktop=window.matchMedia?.('(hover: hover) and (pointer: fine)').matches===true;
     els.chartHint.textContent=available
-      ? desktop?'移动鼠标查看各孕周的推荐体重':'按住图表左右滑动，查看其他孕周的推荐体重'
+      ? desktop?'移动鼠标查看各孕周的目标与推荐范围':'按住图表左右滑动，查看其他孕周的目标与推荐范围'
       : '完成孕前设置后，可在图表中查询各孕周推荐体重';
     els.chartGuide.classList.remove('is-hiding');
     els.chartGuide.hidden=!available||chartGuideSeen();
@@ -230,28 +268,49 @@
     const recommendation=selection.valid
       ? PregnancyCalculator.recommendation(state.preWeight,state.heightCm,state.plurality,selection.week,selection.day,medicalState())
       : unavailableRecommendation(profile);
-    els.targetLabel.textContent='推荐体重';els.rangeLabel.textContent='参考范围';
-    if(recommendation.available){
-      els.legendRecommendation.hidden=false;els.legendRange.hidden=false;
-      els.target.textContent=recommendation.target.toFixed(1);
-      els.range.textContent=`${recommendation.low.toFixed(1)}–${recommendation.high.toFixed(1)}`;
-      els.chartHeadline.textContent=`${selection.week}周${selection.day?selection.day+'天':''} · 估算中位 ${recommendation.target.toFixed(1)} kg`;
+    const activeDoctor=doctorPlanActive(),doctor=doctorRecommendation(selection),hasDoctorTargets=(state.doctorTargets||[]).length>0;
+    els.legendRecommendation.hidden=!recommendation.available;els.legendRange.hidden=!recommendation.available;
+    els.legendDoctor.hidden=!activeDoctor||!hasDoctorTargets;
+    els.legendDoctor.parentElement.classList.toggle('is-general-muted',state.hasPregnancyComplication||activeDoctor);
+    els.medicalNotice.hidden=!(state.hasPregnancyComplication||state.hasDoctorTarget);
+    if(!els.medicalNotice.hidden){
+      const notices=[];
+      if(state.hasPregnancyComplication)notices.push('当前存在妊娠并发症，通用曲线仅供趋势参考，请结合医生意见进行个体化评价。');
+      if(state.hasDoctorTarget&&!hasDoctorTargets)notices.push('请根据医生提供的数据录入目标。参数不足时不会自动生成曲线。');
+      else if(state.hasDoctorTarget&&!state.doctorPlanEnabled)notices.push('医生目标曲线已暂停显示，已录入参数仍保存在本机。');
+      els.medicalNotice.textContent=notices.join(' ');
+    }
+    els.generalReferenceSummary.hidden=!(activeDoctor&&recommendation.available);
+    if(!els.generalReferenceSummary.hidden)els.generalReferenceSummary.textContent=`通用推荐范围，仅供对照：${recommendation.low.toFixed(1)}–${recommendation.high.toFixed(1)} kg；估算中位 ${recommendation.target.toFixed(1)} kg。`;
+    if(activeDoctor){
+      els.rangeLabel.textContent='医生个体化目标范围';
+      els.targetLabel.textContent=doctor.available?(doctor.middleSource==='provided'?'医生目标中位数':'范围中点'):'医生目标中心';
+      if(doctor.available){
+        els.target.textContent=doctor.target.toFixed(1);els.range.textContent=`${doctor.low.toFixed(1)}–${doctor.high.toFixed(1)}`;
+        els.chartHeadline.textContent=`${selection.week}周${selection.day?selection.day+'天':''} · 医生个体化目标`;
+      }else{
+        els.target.textContent='--';els.range.textContent='--';els.chartHeadline.textContent='当前孕周暂无医生目标数据';
+      }
     }else{
-      els.legendRecommendation.hidden=true;els.legendRange.hidden=true;
-      els.target.textContent='--';
-      els.range.textContent='--';
-      els.chartHeadline.textContent=referenceMessage(recommendation.reason);
+      els.targetLabel.textContent=state.hasPregnancyComplication?'通用估算中位数':'推荐体重';els.rangeLabel.textContent=state.hasPregnancyComplication?'通用推荐范围':'参考范围';
+      if(recommendation.available){
+        els.target.textContent=recommendation.target.toFixed(1);els.range.textContent=`${recommendation.low.toFixed(1)}–${recommendation.high.toFixed(1)}`;
+        els.chartHeadline.textContent=`${selection.week}周${selection.day?selection.day+'天':''} · 估算中位 ${recommendation.target.toFixed(1)} kg`;
+      }else{
+        els.target.textContent='--';els.range.textContent='--';els.chartHeadline.textContent=referenceMessage(recommendation.reason);
+      }
     }
     if(state.records.length) els.chartEmpty.hidden=true;
     else{
       els.chartEmpty.hidden=false;
-      els.chartEmpty.textContent=recommendation.available?'输入当前体重后，会显示你的体重记录':referenceMessage(recommendation.reason);
+      els.chartEmpty.textContent=activeDoctor&&!hasDoctorTargets?'录入医生目标点后显示个体化目标曲线':activeDoctor&&hasDoctorTargets?'医生目标已显示；输入体重后显示实际记录':recommendation.available?'输入当前体重后，会显示你的体重记录':referenceMessage(recommendation.reason);
     }
-    updateChartGuidance(recommendation);renderProfileNotice(profile);renderInsights(recommendation,profile);renderTrends(profile);renderHistory();renderEnhancedChart(recommendation);
+    const activeRecommendation=activeDoctor?(doctor.available?{...doctor,totalGain:recommendation.totalGain}:{available:false,reason:'doctor-missing',totalGain:recommendation.totalGain}):recommendation;
+    updateChartGuidance(recommendation);renderProfileNotice(profile);renderInsights(activeRecommendation,profile,{doctor:activeDoctor});renderTrends(profile);renderHistory();renderEnhancedChart(recommendation,doctor);
   }
 
   function setupInputPolish(){
-    [els.week,els.day,els.weight,els.recordWeight,els.baseInput,els.heightInput].filter(Boolean).forEach(input=>{
+    [els.week,els.day,els.weight,els.recordWeight,els.baseInput,els.heightInput,els.doctorWeek,els.doctorDay,els.doctorLower,els.doctorMiddle,els.doctorUpper].filter(Boolean).forEach(input=>{
       input.addEventListener('focus',()=>setTimeout(()=>input.select?.(),60));
       input.addEventListener('keydown',event=>{if(event.key==='Enter')input.blur();});
     });
@@ -273,11 +332,12 @@
       const parsed=JSON.parse(await file.text());
       const checked=PregnancyStorage.validateBackup(parsed);
       const merge=PregnancyStorage.mergeRecords(state.records,checked.data.records);
-      const next={...state,...checked.data,records:merge.records};
+      const doctorMerge=PregnancyStorage.mergeDoctorTargets(state.doctorTargets,checked.data.doctorTargets);
+      const next={...state,...checked.data,records:merge.records,doctorTargets:doctorMerge.targets};
       state=PregnancyStorage.replaceData(next);hydrate();render();
       const skipped=checked.stats.skipped+merge.stats.skipped;
       const warning=checked.warnings.length?` · ${checked.warnings.join('；')}`:'';
-      showBackupStatus(`导入完成：合并/更新 ${merge.stats.merged}，跳过 ${skipped}，无效 ${checked.stats.invalid}${warning}`,checked.warnings.length?'warning':'ok');
+      showBackupStatus(`导入完成：体重合并/更新 ${merge.stats.merged}，医生目标合并/更新 ${doctorMerge.stats.merged}，跳过 ${skipped+doctorMerge.stats.skipped+checked.stats.doctorSkipped}，无效 ${checked.stats.invalid+checked.stats.doctorInvalid}${warning}`,checked.warnings.length?'warning':'ok');
     }catch(error){
       console.error(error);showBackupStatus(error.message||'导入失败，现有数据未更改','error');
     }finally{els.backupFile.value='';}
@@ -366,7 +426,7 @@
   function showTooltip(event){
     const point=PregnancyChart.nearest(event.clientX,event.clientY);
     if(!point){hideTooltip();return;}
-    els.tooltipType.textContent=point.type==='recommended'?'推荐体重':'实际体重';
+    els.tooltipType.textContent=point.type==='doctor'?'医生目标中位数':point.type==='recommended'?'通用推荐体重':'实际体重';
     els.tooltipWeek.textContent=`${point.week}周${point.day?`${point.day}天`:''}`;
     els.tooltipWeight.textContent=`${Number(point.weight).toFixed(1)} kg`;
     const rect=els.chart.getBoundingClientRect(),wrap=els.chartWrap.getBoundingClientRect();
@@ -430,7 +490,34 @@
   function preventLockedChartScroll(event){
     if(!chartGesture||chartGesture.pointerType==='mouse')return;
     const touch=event.touches?.[0];if(chartGesture.mode==='pending'&&touch)resolvePendingChartGesture(touch.clientX,touch.clientY);
-    if(chartGesture.mode==='query'&&event.cancelable)event.preventDefault();
+    if(chartGesture.mode==='query'&&touch){
+      chartGesture.moved=chartGesture.moved||Math.abs(touch.clientX-chartGesture.startX)>6;
+      PregnancyChart.showCrosshair(touch.clientX,chartGesture.startY);
+      if(event.cancelable)event.preventDefault();
+    }
+  }
+  function completeDoctorNumber(value,{optional=false}={}){
+    const text=String(value??'').trim();if(optional&&text==='')return null;
+    if(!/^\d+(?:\.\d+)?$/.test(text))return NaN;
+    const number=Number(text);return validWeight(number)?number:NaN;
+  }
+  function saveDoctorTargetFromForm(){
+    const week=Number(els.doctorWeek.value),day=Number(els.doctorDay.value),lower=completeDoctorNumber(els.doctorLower.value),middle=completeDoctorNumber(els.doctorMiddle.value,{optional:true}),upper=completeDoctorNumber(els.doctorUpper.value);
+    if(!Number.isInteger(week)||week<D.minWeek||week>D.maxWeek||!Number.isInteger(day)||day<0||day>D.maxDay){setDoctorPlanStatus('孕周必须为1–40周，天数必须为0–6天。','error');return;}
+    if(!Number.isFinite(lower)||!Number.isFinite(upper)){setDoctorPlanStatus(`下限和上限必须是 ${C.minWeightKg}–${C.maxWeightKg} kg 的完整有效数字。`,'error');return;}
+    if(lower>upper){setDoctorPlanStatus('推荐下限不能大于推荐上限。','error');return;}
+    if(Number.isNaN(middle)||middle!==null&&(middle<lower||middle>upper)){setDoctorPlanStatus('推荐中位数必须留空，或填写下限与上限之间的完整有效数字。','error');return;}
+    const id=PregnancyStorage.expectedDoctorTargetId(week,day),duplicate=(state.doctorTargets||[]).find(target=>target.id===id);
+    if(duplicate&&duplicate.id!==editingDoctorTargetId&&!confirm('该孕周天数已有医生目标，是否覆盖？'))return;
+    let base=state;if(editingDoctorTargetId&&editingDoctorTargetId!==id)base=PregnancyStorage.deleteDoctorTarget(base,editingDoctorTargetId);
+    const result=PregnancyStorage.upsertDoctorTarget(base,{week,day,lower,middle,upper});
+    if(!result.valid){setDoctorPlanStatus('医生目标未通过完整校验，请检查输入。','error');return;}
+    state=PregnancyStorage.save({...result.state,hasDoctorTarget:true,doctorPlanEnabled:els.doctorPlanEnabled.checked});
+    els.doctorTargetInput.checked=true;resetDoctorTargetForm();renderDoctorTargetList();setDoctorPlanStatus('医生目标已保存到本机','ok');render();
+  }
+  function editDoctorTarget(id){
+    const target=(state.doctorTargets||[]).find(item=>item.id===id);if(!target)return;
+    editingDoctorTargetId=id;els.doctorWeek.value=String(target.week);els.doctorDay.value=String(target.day);els.doctorLower.value=String(target.lower);els.doctorMiddle.value=target.middle===null?'':String(target.middle);els.doctorUpper.value=String(target.upper);els.saveDoctorTarget.textContent='保存修改';els.cancelDoctorEdit.hidden=false;setDoctorPlanStatus('正在编辑该目标点');els.doctorWeek.focus();
   }
   function openRecord(id){
     const record=state.records.find(item=>item.id===id);if(!record)return;
@@ -447,12 +534,22 @@
   ['change','blur'].forEach(eventName=>els.weight.addEventListener(eventName,()=>{if(weightDirty)persistCurrent();}));
   els.baseButton.addEventListener('click',()=>{syncProfileControls();els.dialog.showModal();});
   [els.baseInput,els.heightInput,els.pluralityInput,els.complicationInput,els.doctorTargetInput].forEach(input=>input.addEventListener('input',updateBmiPreview));
+  els.doctorTargetInput.addEventListener('input',updateDoctorPlanVisibility);
+  els.doctorPlanEnabled.addEventListener('change',()=>{state=PregnancyStorage.save({...state,doctorPlanEnabled:els.doctorPlanEnabled.checked});setDoctorPlanStatus(els.doctorPlanEnabled.checked?'医生目标曲线已恢复显示':'医生目标曲线已暂停显示','ok');render();});
+  els.saveDoctorTarget.addEventListener('click',saveDoctorTargetFromForm);
+  els.cancelDoctorEdit.addEventListener('click',resetDoctorTargetForm);
+  els.doctorTargetList.addEventListener('click',event=>{
+    const button=event.target.closest('button'),item=event.target.closest('.doctor-target-item');if(!button||!item)return;
+    if(button.dataset.action==='edit')editDoctorTarget(item.dataset.id);
+    if(button.dataset.action==='delete'){state=PregnancyStorage.save(PregnancyStorage.deleteDoctorTarget(state,item.dataset.id));if(editingDoctorTargetId===item.dataset.id)resetDoctorTargetForm();renderDoctorTargetList();setDoctorPlanStatus('目标点已删除','ok');render();}
+  });
+  els.clearDoctorTargets.addEventListener('click',()=>{if(confirm('确定清空全部医生目标吗？此操作不会删除体重记录。')){state=PregnancyStorage.save(PregnancyStorage.clearDoctorTargets(state));resetDoctorTargetForm();renderDoctorTargetList();setDoctorPlanStatus('全部医生目标已清空','ok');render();}});
   els.saveBase.addEventListener('click',event=>{
     event.preventDefault();
     const weight=Number(els.baseInput.value),heightRaw=els.heightInput.value.trim(),height=heightRaw===''?null:Number(heightRaw);
     if(!validWeight(weight)){els.bmiPreview.textContent='孕前体重需在 30–200 kg';return;}
     if(height!==null&&(!Number.isFinite(height)||height<C.minHeightCm||height>C.maxHeightCm)){els.bmiPreview.textContent=`身高需在 ${C.minHeightCm}–${C.maxHeightCm} cm`;return;}
-    state=PregnancyStorage.save({...state,preWeight:weight,heightCm:height,plurality:els.pluralityInput.value,pluralityConfirmed:true,hasPregnancyComplication:els.complicationInput.checked,hasDoctorTarget:els.doctorTargetInput.checked});
+    state=PregnancyStorage.save({...state,preWeight:weight,heightCm:height,plurality:els.pluralityInput.value,pluralityConfirmed:true,hasPregnancyComplication:els.complicationInput.checked,hasDoctorTarget:els.doctorTargetInput.checked,doctorPlanEnabled:els.doctorPlanEnabled.checked});
     els.dialog.close();syncProfileControls();render();setSaveState();
   });
   els.clear.addEventListener('click',()=>{if(confirm('清空所有体重记录？此操作不会清除孕前设置。')){state=PregnancyStorage.save(PregnancyStorage.clearRecords(state));els.weight.value='';showAllHistory=false;render();}});

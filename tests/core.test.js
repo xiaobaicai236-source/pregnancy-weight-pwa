@@ -63,18 +63,19 @@ test('WS/T 801—2022 四类增重参数完整且不混用美国数据',()=>{
   assert.equal(D.references.twins,undefined);
 });
 
-test('身高、孕前体重、并发症和医生目标限制普通参考但保留记录能力',()=>{
+test('身高和孕前体重边界限制通用参考，并发症与医生目标仅降低结论强度',()=>{
   const cases=[
     [C.profile(50,139,'singleton'),'height-limit'],
-    [C.profile(126,180,'singleton'),'weight-limit'],
-    [C.profile(60,165,'singleton',{hasPregnancyComplication:true}),'complication'],
-    [C.profile(60,165,'singleton',{hasDoctorTarget:true}),'doctor-target']
+    [C.profile(126,180,'singleton'),'weight-limit']
   ];
   cases.forEach(([profile,reason])=>{assert.equal(profile.referenceReason,reason);assert.equal(profile.referenceEligible,false);});
+  const complication=C.profile(60,165,'singleton',{hasPregnancyComplication:true}),doctor=C.profile(60,165,'singleton',{hasDoctorTarget:true});
+  assert.equal(complication.referenceEligible,true);assert.equal(complication.needsIndividualEvaluation,true);
+  assert.equal(doctor.referenceEligible,true);assert.equal(doctor.needsIndividualEvaluation,true);
   let state=S.sanitizeState({...validProfile,heightCm:139,records:[]});
   state=S.addRecord(state,25,0,60);assert.equal(state.records.length,1);
   state=S.sanitizeState({...validProfile,hasPregnancyComplication:true,records:state.records});
-  assert.equal(C.recommendation(state.preWeight,state.heightCm,state.plurality,25,0,{hasPregnancyComplication:true}).available,false);
+  assert.equal(C.recommendation(state.preWeight,state.heightCm,state.plurality,25,0,{hasPregnancyComplication:true}).available,true);
   assert.equal(state.records.length,1);
   assert.equal(C.profile(60,140,'singleton').referenceEligible,true);
   assert.equal(C.profile(125,200,'singleton').referenceEligible,true);
@@ -165,20 +166,74 @@ test('需个体化评价时近期速度只供观察且不判断偏快偏慢',()=
   assert.equal(result.available,true);assert.equal(result.weeklyReference,null);assert.equal(result.status,'仅供观察');
 });
 
+test('医生目标点严格校验上下限、中位数和孕周边界',()=>{
+  assert.equal(S.normalizeDoctorTarget({week:24,day:0,lower:55,middle:56,upper:57}).valid,true);
+  assert.equal(S.normalizeDoctorTarget({week:24,day:0,lower:58,upper:57}).valid,false);
+  assert.equal(S.normalizeDoctorTarget({week:24,day:0,lower:55,middle:58,upper:57}).valid,false);
+  assert.equal(S.normalizeDoctorTarget({week:41,day:0,lower:55,upper:57}).valid,false);
+  assert.equal(S.normalizeDoctorTarget({week:24,day:7,lower:55,upper:57}).valid,false);
+});
+
+test('单个医生目标只在精确孕周显示且不外推',()=>{
+  const targets=[{week:24,day:0,gestation:24,lower:55,middle:null,upper:57}];
+  const exact=C.doctorTargetAtGestation(targets,24),outside=C.doctorTargetAtGestation(targets,25);
+  assert.equal(exact.available,true);assert.equal(exact.middleSource,'range-midpoint');assert.equal(exact.target,56);assert.equal(exact.singlePoint,true);
+  assert.equal(outside.available,false);assert.equal(outside.reason,'outside');
+});
+
+test('医生目标只在相邻点间线性插值并准确经过录入点',()=>{
+  const targets=[
+    {week:24,day:0,gestation:24,lower:55,middle:56,upper:57},
+    {week:28,day:0,gestation:28,lower:56,middle:57.2,upper:58.5},
+    {week:32,day:0,gestation:32,lower:57,middle:null,upper:60}
+  ];
+  const exact=C.doctorTargetAtGestation(targets,28),between=C.doctorTargetAtGestation(targets,26),mixed=C.doctorTargetAtGestation(targets,30);
+  assert.deepEqual([exact.low,exact.target,exact.high],[56,57.2,58.5]);assert.equal(exact.middleSource,'provided');
+  assert.deepEqual([between.low,between.target,between.high],[55.5,56.6,57.8]);assert.equal(between.middleSource,'provided');
+  assert.equal(mixed.middleSource,'range-midpoint');assert.equal(mixed.target,(mixed.low+mixed.high)/2);
+  assert.equal(C.doctorTargetAtGestation(targets,20).available,false);assert.equal(C.doctorTargetAtGestation(targets,35).available,false);
+});
+
+test('取消医生目标选项或暂停曲线不会删除已录入参数',()=>{
+  let state=S.sanitizeState({...validProfile,hasDoctorTarget:true,doctorPlanEnabled:true,doctorTargets:[{week:24,day:0,lower:55,middle:null,upper:57}]});
+  state=S.save({...state,hasDoctorTarget:false,doctorPlanEnabled:false});
+  assert.equal(state.doctorTargets.length,1);assert.equal(state.hasDoctorTarget,false);assert.equal(state.doctorPlanEnabled,false);
+  state=S.save({...state,hasDoctorTarget:true,doctorPlanEnabled:true});assert.equal(state.doctorTargets.length,1);
+});
+
+test('医生目标同孕周覆盖、删除与清空不影响体重记录',()=>{
+  let state=S.sanitizeState({...validProfile,records:[record(25,0,58)],doctorTargets:[]});
+  let result=S.upsertDoctorTarget(state,{week:24,day:0,lower:55,middle:null,upper:57});state=result.state;
+  result=S.upsertDoctorTarget(state,{week:24,day:0,lower:55.5,middle:56,upper:57.5});state=result.state;
+  assert.equal(result.replaced,true);assert.equal(state.doctorTargets.length,1);assert.equal(state.doctorTargets[0].lower,55.5);
+  state=S.deleteDoctorTarget(state,state.doctorTargets[0].id);assert.equal(state.doctorTargets.length,0);assert.equal(state.records.length,1);
+  state=S.upsertDoctorTarget(state,{week:28,day:0,lower:56,middle:null,upper:59}).state;state=S.clearDoctorTargets(state);assert.equal(state.doctorTargets.length,0);assert.equal(state.records.length,1);
+});
+
 test('新版备份包含资料字段并可通过校验',()=>{
-  const state=S.sanitizeState({preWeight:51.5,heightCm:165,plurality:'singleton',pluralityConfirmed:true,hasDoctorTarget:true,week:25,day:0,records:[record(25,0,58)]});
+  const state=S.sanitizeState({preWeight:51.5,heightCm:165,plurality:'singleton',pluralityConfirmed:true,hasDoctorTarget:true,doctorPlanEnabled:true,doctorTargets:[{week:24,day:0,lower:55,middle:56,upper:57}],week:25,day:0,records:[record(25,0,58)]});
   const payload=S.makeBackupPayload(state),checked=S.validateBackup(payload);
-  assert.equal(payload.version,2);assert.ok(Number.isFinite(payload.data.bmi));assert.equal(checked.data.records.length,1);assert.equal(checked.data.hasDoctorTarget,true);
+  assert.equal(payload.version,3);assert.ok(Number.isFinite(payload.data.bmi));assert.equal(checked.data.records.length,1);assert.equal(checked.data.hasDoctorTarget,true);assert.equal(checked.data.doctorTargets.length,1);assert.equal(checked.data.doctorPlanVersion,1);
 });
 
 test('旧版备份缺少身高和胎数时仍可导入并给出提醒',()=>{
   const checked=S.validateBackup({schema:'pregnancy-weight-pwa-backup',version:1,data:{preWeight:51.5,week:25,day:0,records:[record(25,0,58)]}});
-  assert.equal(checked.data.heightCm,null);assert.equal(checked.data.plurality,'singleton');assert.equal(checked.data.pluralityConfirmed,false);assert.equal(checked.data.hasPregnancyComplication,false);assert.equal(checked.data.hasDoctorTarget,false);assert.equal(checked.warnings.length,2);
+  assert.equal(checked.data.heightCm,null);assert.equal(checked.data.plurality,'singleton');assert.equal(checked.data.pluralityConfirmed,false);assert.equal(checked.data.hasPregnancyComplication,false);assert.equal(checked.data.hasDoctorTarget,false);assert.equal(checked.data.doctorPlanEnabled,true);assert.deepEqual(checked.data.doctorTargets,[]);assert.equal(checked.warnings.length,2);
 });
 
 test('恶意或不一致记录仅计为无效，不进入数据',()=>{
   const checked=S.validateBackup({schema:'pregnancy-weight-pwa-backup',version:2,data:{preWeight:51.5,heightCm:165,plurality:'singleton',week:25,day:0,records:[record(25,0,58),{id:'<img src=x onerror=alert(1)>',week:25,day:1,gestation:25.2,weight:59}]}});
   assert.equal(checked.data.records.length,1);assert.equal(checked.stats.invalid,1);
+});
+
+test('导入医生目标会跳过无效和重复数据且不执行输入内容',()=>{
+  const checked=S.validateBackup({schema:'pregnancy-weight-pwa-backup',version:3,data:{...validProfile,week:25,day:0,records:[],doctorTargets:[
+    {week:24,day:0,lower:55,middle:56,upper:57,updatedAt:1},
+    {week:24,day:0,lower:55.5,middle:null,upper:57.5,updatedAt:2},
+    {id:'<img onerror=alert(1)>',week:28,day:0,lower:56,upper:59},
+    {week:30,day:0,lower:61,middle:60,upper:62}
+  ]}});
+  assert.equal(checked.data.doctorTargets.length,1);assert.equal(checked.data.doctorTargets[0].lower,55.5);assert.equal(checked.stats.doctorSkipped,1);assert.equal(checked.stats.doctorInvalid,2);
 });
 
 test('无效资料会拒绝整个备份',()=>{
