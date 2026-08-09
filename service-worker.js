@@ -1,4 +1,4 @@
-const CACHE='pregnancy-weight-v1.8.0-doctor-targets-1';
+const CACHE='pregnancy-weight-v1.8.0-mobile-crosshair-2';
 const SHELL=[
   './',
   './index.html',

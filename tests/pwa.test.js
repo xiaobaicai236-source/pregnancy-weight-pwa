@@ -20,7 +20,7 @@ test('所有页面静态资源引用统一为 v1.8.0',()=>{
 test('Service Worker 预缓存 URL 与页面请求完全一致',()=>{
   const references=[...html.matchAll(/(?:href|src)="((?:style\.css|data\.js|calculator\.js|storage\.js|chart\.js|app\.js|manifest\.json|assets\/apple-touch-icon\.png)\?v=1\.8\.0)"/g)].map(match=>`./${match[1]}`);
   references.forEach(reference=>assert.ok(worker.includes(`'${reference}'`),`missing ${reference}`));
-  assert.match(worker,/const CACHE='pregnancy-weight-v1\.8\.0-doctor-targets-1'/);
+  assert.match(worker,/const CACHE='pregnancy-weight-v1\.8\.0-mobile-crosshair-2'/);
   assert.match(worker,/keys\.filter\(key=>key!==CACHE\)/);
 });
 
@@ -107,10 +107,10 @@ test('触摸手势超过阈值后单向锁定查询或页面滚动',()=>{
   assert.equal(intent(8,20),'scroll');assert.equal(intent(-9,-22),'scroll');assert.equal(intent(12,11),'pending');
   assert.match(app,/chartGesture\.mode='query'/);
   assert.match(app,/resolvePendingChartGesture\(event\.clientX,event\.clientY\)==='query'&&event\.cancelable/);
-  assert.match(app,/chartGesture\.mode='scroll';PregnancyChart\.clearCrosshair\(\)/);
+  assert.match(app,/chartGesture\.mode='scroll';cancelScheduledCrosshair\(\);PregnancyChart\.clearCrosshair\(\)/);
   assert.match(app,/chartGesture\.mode==='query'&&touch/);
   assert.match(app,/chartGesture\.mode==='pending'&&touch\)resolvePendingChartGesture\(touch\.clientX,touch\.clientY\)/);
-  assert.match(app,/PregnancyChart\.showCrosshair\(touch\.clientX,chartGesture\.startY\)/);
+  assert.match(app,/scheduleCrosshair\(touch\.clientX,chartGesture\.startY\)/);
   assert.match(app,/addEventListener\('touchmove',preventLockedChartScroll,\{passive:false\}\)/);
   assert.match(app,/setPointerCapture\(event\.pointerId\);chartGesture\.captured=true/);
   assert.doesNotMatch(style,/touch-action:none/);
@@ -159,6 +159,18 @@ test('默认计算完整采用 WS/T 801—2022 中国标准',()=>{
   assert.match(html,/使用前必读 · 关于与说明/);assert.match(html,/class="required-badge">必读/);
   assert.match(html,/WS\/T 801—2022/);assert.match(readme,/2022年10月1日/);
   assert.match(html,/complicationInput/);assert.match(html,/doctorTargetInput/);
+});
+
+test('十字定位移动合并到每帧一次并跳过同一天重复绘制',()=>{
+  assert.match(app,/function scheduleCrosshair\(clientX,clientY,onResult=null\)/);
+  assert.match(app,/crosshairFrame=requestAnimationFrame/);assert.match(app,/cancelAnimationFrame\(crosshairFrame\)/);
+  assert.match(app,/scheduleCrosshair\(event\.clientX,chartGesture\.startY\)/);
+  assert.match(app,/scheduleCrosshair\(touch\.clientX,chartGesture\.startY\)/);
+  assert.match(chart,/if\(crosshair\?\.gestation===gestation\)return \{\.\.\.crosshair\}/);
+  assert.match(html,/class="chart-crosshair-layer"/);
+  assert.match(style,/\.chart-crosshair-layer\{z-index:2;pointer-events:none\}/);
+  assert.match(chart,/const baseImage=overlayCtx\?null:ctx\.getImageData/);
+  assert.match(chart,/overlayCtx\.clearRect\(0,0,element\.width,element\.height\)/);
 });
 
 test('并发症提示与医生个体化目标具有完整本地功能',()=>{

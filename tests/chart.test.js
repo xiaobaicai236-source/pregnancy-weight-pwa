@@ -48,9 +48,11 @@ PregnancyChart.drawChart(canvas,{records:[],currentWeek:25,minWeek,maxWeek,recom
 
 const dayResult=PregnancyChart.showCrosshair(clientX(14+3/7),80);
 assert.equal(dayResult.week,14);assert.equal(dayResult.day,3);assert.equal(dayResult.target,50+(14+3/7)/10);
+const operationsBeforeSameDay=operations.length;
 const sameXOtherY=PregnancyChart.showCrosshair(clientX(14+3/7),210);
 assert.equal(sameXOtherY.target,dayResult.target,'横线对应推荐中位数，不跟随手指纵坐标');
 assert.equal(sameXOtherY.low,dayResult.low);assert.equal(sameXOtherY.high,dayResult.high);
+assert.equal(operations.length,operationsBeforeSameDay,'同一孕周天数内移动不应重复重绘Canvas');
 const drawnText=operations.filter(operation=>operation[0]==='fillText').map(operation=>operation[1]);
 assert.ok(drawnText.some(text=>text.startsWith('推荐上限 ')));
 assert.ok(drawnText.some(text=>text.startsWith('推荐中位数 ')));

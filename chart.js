@@ -5,7 +5,11 @@
   function setup(element){
     const rect=element.getBoundingClientRect(),width=Math.max(280,rect.width||320),height=Math.max(240,rect.height||300);
     element.width=Math.round(width*DPR);element.height=Math.round(height*DPR);
-    const ctx=element.getContext('2d');ctx.setTransform(DPR,0,0,DPR,0,0);return {ctx,width,height};
+    const ctx=element.getContext('2d');ctx.setTransform(DPR,0,0,DPR,0,0);
+    const overlay=element.parentElement?.querySelector?.('.chart-crosshair-layer')||null;
+    let overlayCtx=null;
+    if(overlay){overlay.width=element.width;overlay.height=element.height;overlayCtx=overlay.getContext('2d');overlayCtx.setTransform(DPR,0,0,DPR,0,0);}
+    return {ctx,overlayCtx,width,height};
   }
   function separateLabels(labels,minY,maxY,gap=13){
     const sorted=labels.map(item=>({...item,displayY:item.y})).sort((a,b)=>a.y-b.y);
@@ -71,7 +75,7 @@
     text(query.kind==='doctor'?'医生录入目标，仅负责记录和绘图':'通用推荐范围，仅供趋势参考',left+4,footerY,{color:cssVar('--muted','#72757d'),font:'8px -apple-system,BlinkMacSystemFont,sans-serif'});ctx.restore();
   }
   function drawCrosshair(frame,query){
-    if(!frame||!query)return;const {ctx,pad,plotW,height,x,y}=frame,xx=x(query.gestation);
+    if(!frame||!query)return;const {pad,plotW,height,x,y}=frame,ctx=frame.overlayCtx||frame.ctx,xx=x(query.gestation);
     const primaryColor=query.kind==='doctor'?cssVar('--doctor','#7551b9'):cssVar('--accent','#0a84ff');
     if(query.noReference){ctx.save();ctx.strokeStyle=primaryColor;ctx.globalAlpha=.48;ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,height-pad.b);ctx.stroke();ctx.restore();drawTag(ctx,`${query.week}周${query.day}天`,xx,height-pad.b+10,frame);drawRangeInfo(ctx,query,xx,frame);return;}
     const yy=y(query.target),upperY=y(query.high),lowerY=y(query.low);
@@ -86,12 +90,15 @@
     drawTag(ctx,`${query.week}周${query.day}天`,xx,height-pad.b+10,frame);
     drawRangeInfo(ctx,query,xx,frame);
   }
-  function restoreBase(){
-    if(!lastFrame?.baseImage)return;const {ctx,baseImage}=lastFrame;ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.putImageData(baseImage,0,0);ctx.restore();ctx.setTransform(DPR,0,0,DPR,0,0);
+  function clearCrosshairLayer(){
+    if(!lastFrame)return;
+    const {overlayCtx,ctx,baseImage,element}=lastFrame;
+    if(overlayCtx){overlayCtx.save();overlayCtx.setTransform(1,0,0,1,0,0);overlayCtx.clearRect(0,0,element.width,element.height);overlayCtx.restore();overlayCtx.setTransform(DPR,0,0,DPR,0,0);return;}
+    if(baseImage){ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.putImageData(baseImage,0,0);ctx.restore();ctx.setTransform(DPR,0,0,DPR,0,0);}
   }
   function drawChart(element,opts={}){
     if(!element)return {hitPoints:[]};
-    canvas=element;const {ctx,width,height}=setup(element);
+    crosshair=null;canvas=element;const {ctx,overlayCtx,width,height}=setup(element);
     const minWeek=Number(opts.minWeek??1),maxWeek=Number(opts.maxWeek??40+6/7),currentWeek=Number(opts.currentWeek??25);
     const records=[...(opts.records||[])].filter(record=>Number.isFinite(+record.gestation)&&Number.isFinite(+record.weight)&&record.gestation>=minWeek&&record.gestation<=maxWeek).sort((a,b)=>a.gestation-b.gestation);
     const generalRecFn=typeof opts.generalRecommendationAtWeek==='function'?opts.generalRecommendationAtWeek:(typeof opts.recommendationAtWeek==='function'?opts.recommendationAtWeek:null);
@@ -182,9 +189,8 @@
       ...recommendedPoints.map(point=>({type:'recommended',x:x(point.gestation),y:y(point.target),week:point.week,day:point.day,weight:point.target})),
       ...validDoctorTargets.filter(target=>target.middle!==null).map(target=>({type:'doctor',x:x(target.gestation),y:y(target.middle),week:target.week,day:target.day,weight:target.middle}))
     ];
-    const baseImage=ctx.getImageData(0,0,element.width,element.height);
-    lastFrame={element,opts,ctx,width,height,pad,plotW,plotH,minWeek,maxWeek,generalRecFn,doctorRecFn,doctorEnabled,records,x,y,baseImage};
-    if(crosshair&&hasReference)drawCrosshair(lastFrame,crosshair);
+    const baseImage=overlayCtx?null:ctx.getImageData(0,0,element.width,element.height);
+    lastFrame={element,opts,ctx,overlayCtx,width,height,pad,plotW,plotH,minWeek,maxWeek,generalRecFn,doctorRecFn,doctorEnabled,records,x,y,baseImage};
     return {hitPoints};
   }
   function nearestPoint(element,clientX,clientY,maxDistance=24){
@@ -206,22 +212,23 @@
     if(py<frame.pad.t||py>frame.height-frame.pad.b||px<frame.pad.l||px>frame.pad.l+frame.plotW)return clearCrosshair();
     const maxQueryWeek=Math.min(40,frame.maxWeek),raw=frame.minWeek+(px-frame.pad.l)/frame.plotW*(frame.maxWeek-frame.minWeek);
     const totalDays=Math.round(Math.max(frame.minWeek,Math.min(maxQueryWeek,raw))*7),gestation=totalDays/7;
+    if(crosshair?.gestation===gestation)return {...crosshair};
     const doctorResult=frame.doctorEnabled&&frame.doctorRecFn?frame.doctorRecFn(gestation):null;
     const generalResult=frame.generalRecFn?frame.generalRecFn(gestation):null;
     const result=doctorResult?.available?doctorResult:generalResult;
     if(!result?.available){
       if(!frame.doctorEnabled)return clearCrosshair();
-      crosshair={gestation,week:Math.floor(totalDays/7),day:totalDays%7,kind:'doctor',doctorUnavailable:true,noReference:true,actualWeight:null};restoreBase();drawCrosshair(lastFrame,crosshair);return {...crosshair};
+      crosshair={gestation,week:Math.floor(totalDays/7),day:totalDays%7,kind:'doctor',doctorUnavailable:true,noReference:true,actualWeight:null};clearCrosshairLayer();drawCrosshair(lastFrame,crosshair);return {...crosshair};
     }
     if(![result.low,result.target,result.high].every(value=>Number.isFinite(Number(value))))return clearCrosshair();
     const low=Number(result.low),target=Number(result.target),high=Number(result.high);
     if(low>target||target>high)return clearCrosshair();
     const actual=frame.records.find(record=>Math.abs(Number(record.gestation)-gestation)<1e-6);
     crosshair={gestation,week:Math.floor(totalDays/7),day:totalDays%7,low,target,high,kind:doctorResult?.available?'doctor':'general',middleSource:doctorResult?.middleSource||'provided',doctorUnavailable:frame.doctorEnabled&&!doctorResult?.available,actualWeight:actual?Number(actual.weight):null};
-    restoreBase();drawCrosshair(lastFrame,crosshair);return {...crosshair};
+    clearCrosshairLayer();drawCrosshair(lastFrame,crosshair);return {...crosshair};
   }
   function clearCrosshair(){
-    const had=Boolean(crosshair);crosshair=null;if(had)restoreBase();return null;
+    const had=Boolean(crosshair);crosshair=null;if(had)clearCrosshairLayer();return null;
   }
   function hasCrosshair(){return Boolean(crosshair);}
   window.PregnancyChart={init,draw,nearest,drawChart,nearestPoint,showCrosshair,clearCrosshair,hasCrosshair};
