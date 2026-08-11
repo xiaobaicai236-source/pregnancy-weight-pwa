@@ -1,5 +1,5 @@
 window.PregnancyData = Object.freeze({
-  appVersion: '1.8.0',
+  appVersion: '1.9.0',
   storageKey: 'pregnancy-weight-pwa-v1',
   defaultPrePregnancyWeight: null,
   defaultHeightCm: null,
@@ -9,6 +9,11 @@ window.PregnancyData = Object.freeze({
   minWeek: 1,
   maxWeek: 40,
   maxDay: 6,
+  shareConfig: Object.freeze({
+    productName: '孕期体重监测',
+    productUrl: 'https://xiaobaicai236-source.github.io/pregnancy-weight-pwa/',
+    qrEnabled: true
+  }),
   constraints: Object.freeze({
     minWeightKg: 30,
     maxWeightKg: 200,

@@ -1,18 +1,23 @@
-const CACHE='pregnancy-weight-v1.8.0-touch-reference-3';
+const CACHE='pregnancy-weight-v1.9.0-share-card-3';
 const SHELL=[
   './',
   './index.html',
-  './style.css?v=1.8.0',
-  './data.js?v=1.8.0',
-  './calculator.js?v=1.8.0',
-  './storage.js?v=1.8.0',
-  './chart.js?v=1.8.0',
-  './app.js?v=1.8.0',
-  './manifest.json?v=1.8.0',
-  './assets/icon-192.png?v=1.8.0',
-  './assets/icon-512.png?v=1.8.0',
-  './assets/icon-maskable-512.png?v=1.8.0',
-  './assets/apple-touch-icon.png?v=1.8.0'
+  './style.css?v=1.9.0',
+  './share-design.js?v=1.9.0',
+  './share-card.css?v=1.9.0',
+  './data.js?v=1.9.0',
+  './calculator.js?v=1.9.0',
+  './storage.js?v=1.9.0',
+  './chart.js?v=1.9.0',
+  './vendor/qrcode.js?v=1.9.0',
+  './share-card.js?v=1.9.0',
+  './app.js?v=1.9.0',
+  './manifest.json?v=1.9.0',
+  './assets/icon-192.png?v=1.9.0',
+  './assets/icon-512.png?v=1.9.0',
+  './assets/icon-maskable-512.png?v=1.9.0',
+  './assets/apple-touch-icon.png?v=1.9.0',
+  './assets/share-mother.png?v=1.9.0'
 ];
 
 self.addEventListener('install',event=>{

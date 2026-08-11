@@ -9,10 +9,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="孕期体重监测">
   <meta name="format-detection" content="telephone=no">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <link rel="manifest" href="manifest.json?v=1.8.0">
-  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=1.8.0">
-  <link rel="stylesheet" href="style.css?v=1.8.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <link rel="manifest" href="manifest.json?v=1.9.0">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=1.9.0">
+  <script src="share-design.js?v=1.9.0"></script>
+  <link rel="stylesheet" href="style.css?v=1.9.0">
+  <link rel="stylesheet" href="share-card.css?v=1.9.0">
   <title>孕期体重监测</title>
 </head>
 <body>
@@ -105,17 +107,33 @@
       </article>
     </section>
 
+    <section class="share-card-entry liquid-card reveal reveal-4" aria-labelledby="shareCardEntryTitle">
+      <strong id="shareCardEntryTitle">把这段孕期趋势温柔地保存下来</strong>
+      <button class="share-card-button" id="shareCardButton" type="button" aria-describedby="shareCardDescription shareCardHint" aria-disabled="true" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+        <span>生成我的孕期体重卡片</span>
+      </button>
+      <p class="share-card-description" id="shareCardDescription">生成含体重曲线的图片，可保存或分享</p>
+      <p class="share-card-hint" id="shareCardHint" aria-live="polite">请完成孕前设置并录入当前体重。</p>
+    </section>
+
     <section class="chart-card liquid-card reveal reveal-5">
       <div class="chart-head">
         <div>
           <span class="section-label">体重曲线</span>
           <h2 id="chartHeadline">请先完成孕前设置</h2>
         </div>
-        <div class="legend" aria-label="图例">
-          <span><i class="legend-dot"></i>我的体重</span>
-          <span id="legendDoctor" hidden><i class="legend-doctor-range"></i>医生个体化目标</span>
-          <span id="legendRecommendation"><i class="legend-line"></i>通用推荐参考</span>
-          <span id="legendRange"><i class="legend-band"></i>通用参考范围</span>
+        <div class="chart-side-actions">
+          <button class="share-card-aux" id="shareCardAuxButton" type="button" aria-label="分享孕期体重卡片" aria-disabled="true" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+            <span>分享</span>
+          </button>
+          <div class="legend" aria-label="图例">
+            <span><i class="legend-dot"></i>我的体重</span>
+            <span id="legendDoctor" hidden><i class="legend-doctor-range"></i>医生个体化目标</span>
+            <span id="legendRecommendation"><i class="legend-line"></i>通用推荐参考</span>
+            <span id="legendRange"><i class="legend-band"></i>通用参考范围</span>
+          </div>
         </div>
       </div>
       <div class="chart-wrap" id="chartWrap">
@@ -164,7 +182,7 @@
     <details class="about-panel liquid-card">
       <summary><span class="required-badge">必读</span>使用前必读 · 关于与说明</summary>
       <div class="about-content">
-        <p><strong>孕期体重监测 v1.8.0 · 公开分享准备版</strong></p>
+        <p><strong>孕期体重监测 v1.9.0 · 分享卡片版</strong></p>
         <p><strong>适用范围：</strong>当前标准适用于我国成年女性单胎自然妊娠。双胎、妊娠期糖尿病、其他妊娠并发症及医生已制定个体目标者应遵医嘱；身高低于 140 cm 或孕前体重超过 125 kg 者需个体化评价。</p>
         <p><strong>主要依据：</strong><a href="https://www.nhc.gov.cn/wjw/c100311/202208/deb61e5c2299451ea1b957b0672272b3.shtml" target="_blank" rel="noopener noreferrer">中华人民共和国国家卫生健康委员会 WS/T 801—2022《妊娠期妇女体重增长推荐值标准》</a>。美国 CDC 与 NASEM/IOM 2009 仅作为补充参考，不参与默认计算。</p>
         <p>本工具用于体重记录和趋势参考，不是诊断。孕早期官方仅提供 0–2 kg 阶段范围，页面中的孕早期逐周曲线属于基于官方阶段范围生成的趋势参考，并非官方逐周标准值。</p>
@@ -258,10 +276,51 @@
     </form>
   </dialog>
 
-  <script src="data.js?v=1.8.0"></script>
-  <script src="calculator.js?v=1.8.0"></script>
-  <script src="storage.js?v=1.8.0"></script>
-  <script src="chart.js?v=1.8.0"></script>
-  <script src="app.js?v=1.8.0"></script>
+  <dialog id="shareCardDialog" class="share-dialog" aria-labelledby="shareDialogTitle">
+    <div class="share-dialog-panel">
+      <header class="share-dialog-head">
+        <div>
+          <span>本机生成 · 不上传数据</span>
+          <h2 id="shareDialogTitle">生成我的孕期体重卡片</h2>
+        </div>
+        <button class="share-dialog-close" type="button" data-share-close aria-label="关闭分享卡片">×</button>
+      </header>
+      <section id="shareSettingsView">
+        <p class="share-dialog-copy">选择想出现在卡片中的内容。关闭某项后，卡片会自动重新排版。</p>
+        <form id="sharePrivacyForm" class="share-privacy-options">
+          <label class="share-option">显示孕前体重<input type="checkbox" name="showPreWeight" checked><i class="share-switch" aria-hidden="true"></i></label>
+          <label class="share-option">显示当前体重<input type="checkbox" name="showCurrentWeight" checked><i class="share-switch" aria-hidden="true"></i></label>
+          <label class="share-option">显示累计增重<input type="checkbox" name="showGain" checked><i class="share-switch" aria-hidden="true"></i></label>
+          <label class="share-option">显示具体孕周<input type="checkbox" name="showGestationalAge" checked><i class="share-switch" aria-hidden="true"></i></label>
+          <label class="share-option">显示完整历史曲线<input type="checkbox" name="showHistoryCurve" checked><i class="share-switch" aria-hidden="true"></i></label>
+          <label class="share-option" data-share-feature="public-link" hidden>显示产品二维码<input type="checkbox" name="showQrCode" checked><i class="share-switch" aria-hidden="true"></i></label>
+        </form>
+        <button id="generateSharePreviewButton" class="share-generate" type="button">生成卡片预览</button>
+        <p class="share-privacy-note">卡片不包含姓名、预产期、医院、医生、并发症名称、备注或每条记录的日期。</p>
+      </section>
+      <section id="sharePreviewView" hidden>
+        <div class="share-preview-frame">
+          <img id="shareCardImage" alt="我的孕期体重卡片预览" tabindex="0">
+        </div>
+        <p class="share-mobile-save">轻触预览可查看高清大图；iPhone 可长按图片保存到照片</p>
+        <p class="share-fallback" id="shareFallbackHint" hidden>当前浏览器不支持直接分享图片，可保存图片后分享。</p>
+        <div class="share-actions">
+          <button class="primary" id="saveShareCardButton" type="button">保存图片</button>
+          <button id="shareImageButton" type="button">分享图片</button>
+          <button id="regenerateShareCardButton" type="button">重新生成</button>
+          <button type="button" data-share-close>关闭</button>
+        </div>
+      </section>
+      <div class="share-card-status" id="shareCardStatus" role="status" aria-live="polite" hidden></div>
+    </div>
+  </dialog>
+
+  <script src="data.js?v=1.9.0"></script>
+  <script src="calculator.js?v=1.9.0"></script>
+  <script src="storage.js?v=1.9.0"></script>
+  <script src="chart.js?v=1.9.0"></script>
+  <script src="vendor/qrcode.js?v=1.9.0"></script>
+  <script src="share-card.js?v=1.9.0"></script>
+  <script src="app.js?v=1.9.0"></script>
 </body>
 </html>

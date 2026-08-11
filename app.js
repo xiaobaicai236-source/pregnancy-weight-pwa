@@ -134,6 +134,40 @@
     return PregnancyCalculator.doctorTargetAtGestation(state.doctorTargets,selection.week+selection.day/7);
   }
 
+  function shareCardSnapshot(){
+    const profile=currentProfile(),selection=readInputs(),missing=[];
+    if(profile.heightCm===null||profile.preWeight===null)missing.push('请完成孕前设置：身高和孕前体重');
+    if(!selection.valid)missing.push('请填写完整有效的当前孕周和天数');
+    if(!state.records.length)missing.push('请先录入一条有效体重记录');
+    const currentRecord=selection.valid?recordForSelection(selection):null;
+    if(state.records.length&&selection.valid&&!currentRecord)missing.push('请为当前孕周录入体重');
+    if(missing.length)return {ready:false,missing};
+
+    const gestation=selection.week+selection.day/7;
+    const general=PregnancyCalculator.recommendationAtGestation(state.preWeight,state.heightCm,state.plurality,gestation,medicalState());
+    const activeDoctor=doctorPlanActive(),doctor=doctorRecommendation(selection);
+    let rangeSamples=[],rangeLabel='',rangeType='none',middleSource='provided',statusText='当前孕周暂无可用目标范围',statusNote='仅显示实际体重记录';
+    const positionText=(range,label)=>currentRecord.weight<range.low?`当前体重低于${label}`:currentRecord.weight>range.high?`当前体重高于${label}`:`当前体重位于${label}内`;
+    if(activeDoctor&&doctor.available){
+      rangeSamples=PregnancyCalculator.doctorCurve(state.doctorTargets).map(point=>({gestation:point.gestation,low:point.low,middle:point.target,high:point.high}));
+      rangeLabel='医生目标范围';rangeType='doctor';middleSource=doctor.middleSource;
+      statusText=positionText(doctor,'医生目标范围');statusNote='医生目标数据由用户录入';
+    }else if(!activeDoctor&&general.available){
+      rangeSamples=PregnancyCalculator.curve(state.preWeight,state.heightCm,state.plurality,D.minWeek,D.maxWeek+D.maxDay/7,1/7).map(point=>({gestation:point.week,low:point.low,middle:point.target,high:point.high}));
+      rangeLabel=state.hasPregnancyComplication?'通用推荐参考':'通用推荐范围';rangeType='general';
+      if(state.hasPregnancyComplication){statusText='与通用推荐范围对照，仅供趋势参考';statusNote='当前存在妊娠并发症，请结合医生意见进行个体化评价';}
+      else{statusText=positionText(general,'通用推荐范围');statusNote='基于 WS/T 801—2022 的估算推荐范围';}
+    }
+    const config=D.shareConfig||{};
+    return {ready:true,data:{
+      productName:config.productName||'孕期体重监测',productUrl:config.productUrl||'',qrEnabled:config.qrEnabled===true,
+      gestation,gestationalLabel:`${selection.week}周${selection.day?`${selection.day}天`:''}`,
+      preWeight:profile.preWeight,currentWeight:currentRecord.weight,gain:currentRecord.weight-profile.preWeight,
+      currentRecord:{...currentRecord},records:state.records.map(record=>({...record})),
+      rangeSamples,rangeLabel,rangeType,middleSource,statusText,statusNote,minWeek:D.minWeek,maxWeek:D.maxWeek
+    }};
+  }
+
   function updateBmiPreview(){
     const profile=PregnancyCalculator.profile(els.baseInput.value,els.heightInput.value,els.pluralityInput.value,{hasPregnancyComplication:els.complicationInput.checked,hasDoctorTarget:els.doctorTargetInput.checked});
     if(profile.preWeight===null){els.bmiPreview.textContent='请输入有效的孕前体重';els.profileReference.textContent='';return;}
@@ -308,6 +342,7 @@
     }
     const activeRecommendation=activeDoctor?(doctor.available?{...doctor,totalGain:recommendation.totalGain}:{available:false,reason:'doctor-missing',totalGain:recommendation.totalGain}):recommendation;
     updateChartGuidance(recommendation);renderProfileNotice(profile);renderInsights(activeRecommendation,profile,{doctor:activeDoctor});renderTrends(profile);renderHistory();renderEnhancedChart(recommendation,doctor);
+    try{window.PregnancyShareCard?.refreshAvailability?.();}catch(error){console.warn('分享卡片状态更新失败',error);}
   }
 
   function setupInputPolish(){
@@ -323,7 +358,7 @@
   function exportBackup(){
     const payload=PregnancyStorage.makeBackupPayload(state);
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
-    link.href=url;link.download=`pregnancy-weight-v1.8.0-backup-${new Date().toISOString().slice(0,10)}.json`;
+    link.href=url;link.download=`pregnancy-weight-v1.9.0-backup-${new Date().toISOString().slice(0,10)}.json`;
     document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     showBackupStatus(`已生成新版备份 · ${state.records.length} 条记录`);
   }
@@ -550,6 +585,7 @@
   }
 
   hydrate();PregnancyChart.init(els.chart);setupInputPolish();setupBackupUX();setupInstallUX();render();
+  try{window.PregnancyShareCard?.init?.({getSnapshot:shareCardSnapshot});}catch(error){console.warn('分享卡片模块初始化失败，原页面功能保持可用',error);}
   let previewTimer;
   [els.week,els.day].forEach(input=>{
     input.addEventListener('input',()=>{clearTimeout(previewTimer);previewTimer=setTimeout(()=>requestAnimationFrame(previewSelection),80);});
