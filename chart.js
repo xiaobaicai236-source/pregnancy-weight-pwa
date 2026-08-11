@@ -237,5 +237,40 @@
     const had=Boolean(crosshair);crosshair=null;if(had)clearCrosshairLayer();return null;
   }
   function hasCrosshair(){return Boolean(crosshair);}
-  window.PregnancyChart={init,draw,nearest,drawChart,nearestPoint,showCrosshair,clearCrosshair,hasCrosshair};
+  function drawShareChart(ctx,opts={}){
+    if(!ctx)return;
+    const M=opts.metrics||window.PregnancyShareDesign?.card?.chart;
+    const fontFamily=opts.fontFamily||window.PregnancyShareDesign?.card?.font;
+    if(!M||!fontFamily)return;
+    const bounds=opts.bounds||{x:0,y:0,width:800,height:460};
+    const records=[...(opts.records||[])].filter(record=>Number.isFinite(+record.gestation)&&Number.isFinite(+record.weight)).sort((a,b)=>a.gestation-b.gestation);
+    const samples=[...(opts.rangeSamples||[])].map(sample=>({
+      gestation:+(sample.gestation??sample.week),low:+sample.low,middle:+(sample.middle??sample.target),high:+sample.high
+    })).filter(sample=>[sample.gestation,sample.low,sample.middle,sample.high].every(Number.isFinite));
+    const minWeek=Number(opts.minWeek??1),maxWeek=Number(opts.maxWeek??40),pad={l:M.padLeft,r:M.padRight,t:M.padTop,b:M.padBottom};
+    const plot={x:bounds.x+pad.l,y:bounds.y+pad.t,width:bounds.width-pad.l-pad.r,height:bounds.height-pad.t-pad.b};
+    const values=[];samples.forEach(sample=>values.push(sample.low,sample.middle,sample.high));records.forEach(record=>values.push(+record.weight));
+    let yMin=Math.min(...values)-M.yMargin,yMax=Math.max(...values)+M.yMargin;
+    if(!Number.isFinite(yMin)||!Number.isFinite(yMax)){yMin=M.fallbackMin;yMax=M.fallbackMax;}
+    if(yMax-yMin<M.minSpan){const middle=(yMin+yMax)/2;yMin=middle-M.minSpan/2;yMax=middle+M.minSpan/2;}
+    const x=gestation=>plot.x+(gestation-minWeek)/(maxWeek-minWeek)*plot.width;
+    const y=weight=>plot.y+(yMax-weight)/(yMax-yMin)*plot.height;
+    const palette=opts.palette||{},actualColor=palette.actual,textColor=palette.text,gridColor=palette.grid,pointFill=palette.pointFill;
+    const rangeColor=opts.rangeType==='doctor'?palette.doctor:palette.range;
+    const rangeFill=opts.rangeType==='doctor'?palette.doctorFill:palette.rangeFill;
+
+    ctx.save();ctx.fillStyle=textColor;ctx.font=`500 ${M.legendFont}px ${fontFamily}`;ctx.textAlign='left';ctx.textBaseline='middle';
+    const legendY=bounds.y+M.legendY;ctx.fillStyle=actualColor;ctx.beginPath();ctx.arc(bounds.x+M.legendDotRadius+2,legendY,M.legendDotRadius,0,Math.PI*2);ctx.fill();ctx.fillStyle=textColor;ctx.fillText('我的体重',bounds.x+M.legendTextX,legendY);
+    if(samples.length){ctx.strokeStyle=rangeColor;ctx.lineWidth=M.rangeWidth;ctx.setLineDash(opts.rangeType==='doctor'?[]:M.generalDash);ctx.beginPath();ctx.moveTo(bounds.x+M.legendRangeX1,legendY);ctx.lineTo(bounds.x+M.legendRangeX2,legendY);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=textColor;ctx.fillText(opts.rangeLabel||'推荐参考',bounds.x+M.legendRangeTextX,legendY);}
+    ctx.strokeStyle=gridColor;ctx.fillStyle=textColor;ctx.lineWidth=1;ctx.font=`500 ${M.axisFont}px ${fontFamily}`;ctx.textAlign='right';ctx.textBaseline='middle';
+    for(let index=0;index<4;index++){const value=yMin+(yMax-yMin)*(index/3),yy=y(value);ctx.beginPath();ctx.moveTo(plot.x,yy);ctx.lineTo(plot.x+plot.width,yy);ctx.stroke();ctx.fillText(value.toFixed(0),plot.x-M.axisLabelOffset,yy);}
+    if(samples.length){ctx.fillStyle=rangeFill;ctx.beginPath();samples.forEach((sample,index)=>index?ctx.lineTo(x(sample.gestation),y(sample.high)):ctx.moveTo(x(sample.gestation),y(sample.high)));for(let index=samples.length-1;index>=0;index--)ctx.lineTo(x(samples[index].gestation),y(samples[index].low));ctx.closePath();ctx.fill();ctx.strokeStyle=rangeColor;ctx.lineWidth=M.rangeWidth;ctx.setLineDash(opts.rangeType==='doctor'&&opts.middleSource==='provided'?[]:M.estimatedDash);ctx.beginPath();samples.forEach((sample,index)=>index?ctx.lineTo(x(sample.gestation),y(sample.middle)):ctx.moveTo(x(sample.gestation),y(sample.middle)));ctx.stroke();ctx.setLineDash([]);}
+    const currentGestation=+opts.currentGestation;
+    if(Number.isFinite(currentGestation)&&currentGestation>=minWeek&&currentGestation<=maxWeek){const xx=x(currentGestation);ctx.strokeStyle=palette.currentLine;ctx.lineWidth=M.currentLineWidth;ctx.setLineDash(M.currentDash);ctx.beginPath();ctx.moveTo(xx,plot.y);ctx.lineTo(xx,plot.y+plot.height);ctx.stroke();ctx.setLineDash([]);}
+    if(records.length>1){ctx.strokeStyle=actualColor;ctx.lineWidth=M.actualWidth;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();records.forEach((record,index)=>index?ctx.lineTo(x(record.gestation),y(record.weight)):ctx.moveTo(x(record.gestation),y(record.weight)));ctx.stroke();}
+    records.forEach(record=>{const xx=x(record.gestation),yy=y(record.weight);ctx.fillStyle=pointFill;ctx.beginPath();ctx.arc(xx,yy,M.pointOuter,0,Math.PI*2);ctx.fill();ctx.fillStyle=actualColor;ctx.beginPath();ctx.arc(xx,yy,M.pointInner,0,Math.PI*2);ctx.fill();});
+    if(Number.isFinite(currentGestation)&&Number.isFinite(+opts.currentWeight)){const xx=x(currentGestation),yy=y(+opts.currentWeight);ctx.strokeStyle=actualColor;ctx.lineWidth=M.actualWidth;ctx.fillStyle=pointFill;ctx.beginPath();ctx.arc(xx,yy,M.currentOuter,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle=actualColor;ctx.beginPath();ctx.arc(xx,yy,M.currentInner,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle=textColor;ctx.font=`500 ${M.axisFont}px ${fontFamily}`;ctx.textAlign='center';ctx.textBaseline='top';[1,10,20,30,40].filter(week=>week>=minWeek&&week<=maxWeek).forEach(week=>ctx.fillText(String(week),x(week),plot.y+plot.height+M.xLabelY));ctx.textAlign='right';ctx.fillText('单位：周',plot.x+plot.width,plot.y+plot.height+M.unitY);ctx.restore();
+  }
+  window.PregnancyChart={init,draw,nearest,drawChart,nearestPoint,showCrosshair,clearCrosshair,hasCrosshair,drawShareChart};
 })();

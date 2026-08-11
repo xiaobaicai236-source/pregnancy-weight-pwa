@@ -1,0 +1,8 @@
+.codegraph/
+.omo/
+**/.venv/
+**/__pycache__/
+**/node_modules/
+tests/artifacts/
+pregnancy-weight-tutorial-xhs/renders/
+pregnancy-weight-tutorial-xhs/
