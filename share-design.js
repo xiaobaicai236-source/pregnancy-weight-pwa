@@ -8,7 +8,7 @@
   };
   const design=deepFreeze({
     features:{shareCardPublicLink:false},
-    assets:{motherIllustration:'./assets/share-mother.png?v=1.9.0'},
+    assets:{motherIllustration:'./assets/share-mother.png?v=1.9.1'},
     ui:{
       light:{coral:'#d96f63',coralDeep:'#b6534c',peach:'#f7c9b8',coralSoft:'rgba(217,111,99,.14)',buttonText:'#ffffff'},
       dark:{coral:'#f09a8e',coralDeep:'#ffb0a6',peach:'#7a4d49',coralSoft:'rgba(240,154,142,.18)',buttonText:'#3b2321'},

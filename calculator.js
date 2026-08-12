@@ -72,20 +72,15 @@ window.PregnancyCalculator = (() => {
     const firstLow=reference.firstTrimesterGainKg[0];
     const firstHigh=reference.firstTrimesterGainKg[1];
     const firstTarget=(firstLow+firstHigh)/2;
-    let gain;
-    if(g<=reference.firstTrimesterEndWeek){
-      const progress=clamp((g-D.minWeek)/(reference.firstTrimesterEndWeek-D.minWeek),0,1);
-      gain=(type==='low'?firstLow:type==='high'?firstHigh:firstTarget)*progress;
-    }else{
-      const weeklyLow=group.weeklyGainKg[0];
-      const weeklyHigh=group.weeklyGainKg[1];
-      const weeklyTarget=group.weeklyTargetKg;
-      const first=type==='low'?firstLow:type==='high'?firstHigh:firstTarget;
-      const weekly=type==='low'?weeklyLow:type==='high'?weeklyHigh:weeklyTarget;
-      gain=first+(g-reference.firstTrimesterEndWeek)*weekly;
+    if(g<reference.firstMidLateWeek){
+      const firstTrimesterLastDay=reference.firstMidLateWeek-1/7;
+      const progress=clamp((g-D.minWeek)/(firstTrimesterLastDay-D.minWeek),0,1);
+      return (type==='low'?firstLow:type==='high'?firstHigh:firstTarget)*progress;
     }
-    const totalLimit=type==='low'?group.totalGainKg[0]:type==='high'?group.totalGainKg[1]:(group.totalGainKg[0]+group.totalGainKg[1])/2;
-    return Math.min(gain,totalLimit);
+    const progress=clamp((g-reference.firstMidLateWeek)/(D.maxWeek-reference.firstMidLateWeek),0,1);
+    if(type==='low') return group.totalGainKg[0]*progress;
+    if(type==='high') return firstHigh+(group.totalGainKg[1]-firstHigh)*progress;
+    return firstTarget+(g-reference.firstMidLateWeek)*group.weeklyTargetKg;
   }
 
   function recommendationAtGestation(preWeight,heightCm,plurality,gestationInput,medical={}){
@@ -103,11 +98,13 @@ window.PregnancyCalculator = (() => {
     return recommendationAtGestation(preWeight,heightCm,plurality,gestationalWeek(week,day),medical);
   }
 
-  function curve(preWeight,heightCm,plurality,start=D.minWeek,end=D.maxWeek + D.maxDay/7,step=0.5){
+  function curve(preWeight,heightCm,plurality,start=D.minWeek,end=D.maxWeek + D.maxDay/7,step=1/7){
     const p=profile(preWeight,heightCm,plurality);
     if(!p.referenceEligible) return [];
     const out=[];
-    for(let w=start;w<=end+1e-9;w+=step){
+    const startDay=Math.ceil(start*7-1e-9),endDay=Math.floor(end*7+1e-9),stepDays=Math.max(1,Math.round(step*7));
+    for(let totalDays=startDay;totalDays<=endDay;totalDays+=stepDays){
+      const w=totalDays/7;
       const r=recommendationAtGestation(p.preWeight,p.heightCm,p.plurality,w,{hasPregnancyComplication:p.hasPregnancyComplication,hasDoctorTarget:p.hasDoctorTarget});
       if(r.available) out.push({week:+w.toFixed(4),low:r.low,target:r.target,high:r.high});
     }
@@ -127,7 +124,7 @@ window.PregnancyCalculator = (() => {
     if(spanDays<D.constraints.minimumPaceSpanDays) return {available:false,reason:'short',count:inWindow.length,spanDays};
     const weekly=(latest.weight-start.weight)/spanWeeks;
     const p=profileInput?.bmiCategory ? profileInput : profile(profileInput?.preWeight,profileInput?.heightCm,profileInput?.plurality,profileInput);
-    const weeklyReference=p.referenceEligible && !p.needsIndividualEvaluation && latest.gestation>D.references.singleton.firstTrimesterEndWeek
+    const weeklyReference=p.referenceEligible && !p.needsIndividualEvaluation && latest.gestation>=D.references.singleton.firstMidLateWeek
       ? D.references.singleton.byBmi[p.bmiCategory.id].weeklyGainKg
       : null;
     const status=weeklyReference ? (weekly<weeklyReference[0]?'偏慢':weekly>weeklyReference[1]?'偏快':'参考范围内') : '仅供观察';

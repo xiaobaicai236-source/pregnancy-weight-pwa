@@ -79,7 +79,7 @@
     else if(profile.referenceReason){text=referenceMessage(profile.referenceReason);tone='attention';}
     else if(state.hasPregnancyComplication){text='当前存在妊娠并发症，通用曲线仅供趋势参考，请结合医生意见进行个体化评价。';tone='attention';}
     else if(state.hasDoctorTarget){text=(state.doctorTargets||[]).length?'已录入医生个体化目标；通用推荐范围仅供对照。':'请根据医生提供的数据录入目标。参数不足时不会自动生成曲线。';tone='attention';}
-    else text=`中国标准 · ${profile.bmiCategory.label} · BMI ${profile.bmi.toFixed(1)}；孕早期逐周线为基于官方阶段范围生成的趋势参考`;
+    else text=`中国标准 · ${profile.bmiCategory.label} · BMI ${profile.bmi.toFixed(1)}；每日曲线为基于官方参数派生的趋势参考`;
     els.profileNotice.textContent=text;
     els.profileNotice.dataset.tone=tone;
   }
@@ -177,7 +177,7 @@
     if(!profile.referenceEligible) els.profileReference.textContent=referenceMessage(profile.referenceReason);
     else{
       const individual=els.complicationInput.checked?' 当前存在妊娠并发症，通用曲线仅供趋势参考。':els.doctorTargetInput.checked?' 医生目标需按医生明确数据录入，通用范围仅供对照。':'';
-      els.profileReference.textContent=`WS/T 801—2022 全程总增重参考：${fmtRange(total)}。孕早期逐周线为基于官方 0–2 kg 阶段范围生成的趋势参考。${individual}`;
+      els.profileReference.textContent=`WS/T 801—2022 全程总增重参考：${fmtRange(total)}。每日参考范围由官方累计/周增重参数派生，用于趋势参考，不是官方逐日标准值。${individual}`;
     }
   }
 
@@ -358,7 +358,7 @@
   function exportBackup(){
     const payload=PregnancyStorage.makeBackupPayload(state);
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
-    link.href=url;link.download=`pregnancy-weight-v1.9.0-backup-${new Date().toISOString().slice(0,10)}.json`;
+    link.href=url;link.download=`pregnancy-weight-v1.9.1-backup-${new Date().toISOString().slice(0,10)}.json`;
     document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     showBackupStatus(`已生成新版备份 · ${state.records.length} 条记录`);
   }

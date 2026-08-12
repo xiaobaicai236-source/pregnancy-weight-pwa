@@ -1,5 +1,5 @@
 window.PregnancyData = Object.freeze({
-  appVersion: '1.9.0',
+  appVersion: '1.9.1',
   storageKey: 'pregnancy-weight-pwa-v1',
   defaultPrePregnancyWeight: null,
   defaultHeightCm: null,
@@ -36,7 +36,7 @@ window.PregnancyData = Object.freeze({
     singleton: Object.freeze({
       // WS/T 801—2022. Units: kg and kg/week. The standard applies to
       // adult Chinese women with singleton natural pregnancy.
-      firstTrimesterEndWeek: 13,
+      firstMidLateWeek: 14,
       firstTrimesterGainKg: Object.freeze([0, 2.0]),
       byBmi: Object.freeze({
         underweight: Object.freeze({ totalGainKg:[11,16], weeklyTargetKg:0.46, weeklyGainKg:[0.37,0.56] }),

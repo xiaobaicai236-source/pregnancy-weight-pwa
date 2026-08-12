@@ -106,7 +106,9 @@
     const doctorEnabled=opts.doctorEnabled===true,doctorTargets=doctorEnabled&&Array.isArray(opts.doctorTargets)?opts.doctorTargets:[],generalMuted=opts.generalMuted===true;
     const samples=[];
     if(generalRecFn){
-      for(let gestation=minWeek;gestation<=maxWeek+0.001;gestation+=0.25){
+      const startDay=Math.ceil(minWeek*7-1e-9),endDay=Math.floor(maxWeek*7+1e-9);
+      for(let totalDays=startDay;totalDays<=endDay;totalDays++){
+        const gestation=totalDays/7;
         const result=generalRecFn(gestation);
         if(result?.available&&[result.low,result.target,result.high].every(Number.isFinite)) samples.push({gestation,low:+result.low,target:+result.target,high:+result.high});
       }

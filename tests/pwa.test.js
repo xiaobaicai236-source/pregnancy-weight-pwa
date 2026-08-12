@@ -11,16 +11,16 @@ const manifest=JSON.parse(read('manifest.json'));
 function luminance(hex){const values=hex.match(/[0-9a-f]{2}/gi).map(value=>parseInt(value,16)/255).map(value=>value<=0.03928?value/12.92:((value+0.055)/1.055)**2.4);return 0.2126*values[0]+0.7152*values[1]+0.0722*values[2];}
 function contrast(first,second){const a=luminance(first),b=luminance(second);return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);}
 
-test('所有页面静态资源引用统一为 v1.9.0',()=>{
+test('所有页面静态资源引用统一为 v1.9.1',()=>{
   const references=[...html.matchAll(/(?:href|src)="([^"]+\?v=[^"]+)"/g)].map(match=>match[1]);
-  assert.ok(references.length>=8);references.forEach(reference=>assert.match(reference,/\?v=1\.9\.0$/));
+  assert.ok(references.length>=8);references.forEach(reference=>assert.match(reference,/\?v=1\.9\.1$/));
   assert.doesNotMatch(html,/\?v=1\.[0-8]/);
 });
 
 test('Service Worker 预缓存 URL 与页面请求完全一致',()=>{
-  const references=[...html.matchAll(/(?:href|src)="((?:style\.css|share-design\.js|share-card\.css|data\.js|calculator\.js|storage\.js|chart\.js|vendor\/qrcode\.js|share-card\.js|app\.js|manifest\.json|assets\/apple-touch-icon\.png)\?v=1\.9\.0)"/g)].map(match=>`./${match[1]}`);
+  const references=[...html.matchAll(/(?:href|src)="((?:style\.css|share-design\.js|share-card\.css|data\.js|calculator\.js|storage\.js|chart\.js|vendor\/qrcode\.js|share-card\.js|app\.js|manifest\.json|assets\/apple-touch-icon\.png)\?v=1\.9\.1)"/g)].map(match=>`./${match[1]}`);
   references.forEach(reference=>assert.ok(worker.includes(`'${reference}'`),`missing ${reference}`));
-  assert.match(worker,/const CACHE='pregnancy-weight-v1\.9\.0-share-card-3'/);
+  assert.match(worker,/const CACHE='pregnancy-weight-v1\.9\.1-curve-fix-1'/);
   assert.match(worker,/keys\.filter\(key=>key!==CACHE\)/);
 });
 
@@ -28,8 +28,8 @@ test('分享卡片孕妈插画为本地离线素材并保留绘制降级',()=>{
   const asset='assets/share-mother.png';
   assert.ok(fs.existsSync(path.join(root,asset)));
   assert.ok(fs.statSync(path.join(root,asset)).size>100000);
-  assert.match(shareDesign,/motherIllustration:'\.\/assets\/share-mother\.png\?v=1\.9\.0'/);
-  assert.ok(worker.includes("'./assets/share-mother.png?v=1.9.0'"));
+  assert.match(shareDesign,/motherIllustration:'\.\/assets\/share-mother\.png\?v=1\.9\.1'/);
+  assert.ok(worker.includes("'./assets/share-mother.png?v=1.9.1'"));
   assert.match(shareCard,/function loadMotherIllustration\(\)/);
   assert.match(shareCard,/if\(!motherIllustration\)\{drawMotherLine/);
 });
@@ -99,14 +99,14 @@ test('分享主入口位于结果区末尾且图表仅保留轻量辅助入口',
 });
 
 test('分享入口与导出 Canvas 共用集中设计令牌',()=>{
-  assert.ok(html.indexOf('share-design.js?v=1.9.0')<html.indexOf('share-card.css?v=1.9.0'));
+  assert.ok(html.indexOf('share-design.js?v=1.9.1')<html.indexOf('share-card.css?v=1.9.1'));
   ['ui:','card:','colors:','type:','layout:','chart:'].forEach(token=>assert.ok(shareDesign.includes(token)));
   assert.match(shareDesign,/window\.PregnancyShareDesign=design/);
   assert.match(shareCard,/const DESIGN=window\.PregnancyShareDesign/);
   assert.match(shareCard,/metrics:C,fontFamily:FONT/);
   assert.doesNotMatch(shareCard,/const CARD=Object\.freeze/);
   assert.match(chart,/const M=opts\.metrics\|\|window\.PregnancyShareDesign/);
-  assert.ok(worker.includes("'./share-design.js?v=1.9.0'"));
+  assert.ok(worker.includes("'./share-design.js?v=1.9.1'"));
 });
 
 test('产品网址与二维码当前默认隐藏但实现和离线资源保留',()=>{
@@ -115,7 +115,7 @@ test('产品网址与二维码当前默认隐藏但实现和离线资源保留',
   assert.match(shareCard,/const publicLinkEnabled=DESIGN\.features\.shareCardPublicLink===true/);
   assert.match(shareCard,/if\(showPublicLink\)text\(ctx,snapshot\.productUrl/);
   assert.match(shareCard,/function drawQr\(/);
-  assert.ok(worker.includes("'./vendor/qrcode.js?v=1.9.0'"));
+  assert.ok(worker.includes("'./vendor/qrcode.js?v=1.9.1'"));
   assert.match(readme,/当前版本不显示产品网址和二维码/);
 });
 

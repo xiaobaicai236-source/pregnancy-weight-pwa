@@ -31,6 +31,9 @@ const recommendationAtWeek=gestation=>{
 };
 
 PregnancyChart.drawChart(canvas,{records:[],currentWeek:25,minWeek,maxWeek,recommendationAtWeek});
+const chartSampleCalls=[...calls];
+assert.ok(chartSampleCalls.length>=280,'通用参考曲线必须按每日粒度采样');
+assert.ok(chartSampleCalls.slice(1).every((value,index)=>Math.abs((value-chartSampleCalls[index])-1/7)<1e-9),'相邻曲线采样点应相隔一天');
 
 [
   [1,0],[14,0],[25,0],[40,0]
